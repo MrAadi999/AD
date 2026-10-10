@@ -1,0 +1,2174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BiharStack AI — Turn your website into an AI chatbot in under 2 minutes</title>
+  <style>
+    /* ==========================================================================
+       CSS RESET & DESIGN SYSTEM TOKENS
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --bg-page: #F6F8FC;
+      --bg-card: #FFFFFF;
+      --border-card: #E5E9F0;
+      --border-card-hover: #CBD5E1;
+      
+      --sidebar-bg: #070D18;
+      --sidebar-border: #142033;
+      --sidebar-text: #94A3B8;
+      --sidebar-hover: #121E31;
+
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-light: #EFF6FF;
+
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --text-sub: #94A3B8;
+
+      --status-live: #10B981;
+      --status-live-bg: #ECFDF5;
+
+      --accent-purple: #8B5CF6;
+      --accent-purple-bg: #F5F3FF;
+
+      --accent-green: #10B981;
+      --accent-green-bg: #ECFDF5;
+
+      --accent-orange: #F59E0B;
+      --accent-orange-bg: #FFFBEB;
+
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+      --shadow-card: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+      --shadow-hover: 0 8px 16px -2px rgba(15, 23, 42, 0.06), 0 4px 6px -2px rgba(15, 23, 42, 0.02);
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* ==========================================================================
+       SIDEBAR LAYOUT
+       ========================================================================== */
+    .sidebar {
+      width: 250px;
+      background-color: var(--sidebar-bg);
+      border-right: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      justify-content: space-between;
+      color: var(--sidebar-text);
+      z-index: 20;
+    }
+
+    .sidebar-top {
+      padding: 20px 14px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .brand-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px;
+      margin-bottom: 24px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #2563EB, #4F46E5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+      flex-shrink: 0;
+    }
+
+    .brand-text h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #FFFFFF;
+      letter-spacing: -0.2px;
+      line-height: 1.2;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: #94A3B8;
+      font-weight: 400;
+    }
+
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      list-style: none;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #CBD5E1;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .nav-item:hover {
+      background-color: var(--sidebar-hover);
+      color: #FFFFFF;
+    }
+
+    .nav-item.active {
+      background-color: var(--primary);
+      color: #FFFFFF;
+      font-weight: 600;
+      box-shadow: 0 2px 10px rgba(37, 99, 235, 0.4);
+    }
+
+    .nav-item svg {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+      opacity: 0.85;
+    }
+
+    .nav-item.active svg {
+      opacity: 1;
+    }
+
+    .sidebar-promo {
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #111B2C, #0B121E);
+      border: 1px solid #1C2B42;
+      text-align: left;
+    }
+
+    .sidebar-promo p.title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #FFFFFF;
+      line-height: 1.3;
+    }
+
+    .sidebar-promo p.desc {
+      font-size: 11px;
+      color: #94A3B8;
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+
+    .sidebar-promo button {
+      margin-top: 10px;
+      width: 100%;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s ease;
+    }
+
+    .sidebar-promo button:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .sidebar-bottom {
+      padding: 12px 14px;
+      border-top: 1px solid var(--sidebar-border);
+      background-color: #050912;
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .user-profile:hover {
+      background-color: var(--sidebar-hover);
+    }
+
+    .user-info-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563EB, #6366F1);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .user-details h4 {
+      font-size: 12px;
+      font-weight: 600;
+      color: #FFFFFF;
+      line-height: 1.2;
+    }
+
+    .user-details span {
+      font-size: 10px;
+      color: #94A3B8;
+    }
+
+    .system-status {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #111C2E;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #64748B;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #10B981;
+      font-weight: 500;
+    }
+
+    .status-dot-pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #10B981;
+      box-shadow: 0 0 6px #10B981;
+    }
+
+    /* ==========================================================================
+       MAIN CONTENT CONTAINER & HEADER
+       ========================================================================== */
+    .app-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--bg-page);
+    }
+
+    .header {
+      height: 64px;
+      background-color: #FFFFFF;
+      border-bottom: 1px solid var(--border-card);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      flex-shrink: 0;
+    }
+
+    .search-box {
+      position: relative;
+      width: 360px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 8px 36px 8px 34px;
+      font-size: 12px;
+      color: var(--text-main);
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+
+    .search-box input:focus {
+      background-color: #FFFFFF;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94A3B8;
+      pointer-events: none;
+    }
+
+    .search-kbd {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 10px;
+      font-weight: 600;
+      color: #94A3B8;
+      background-color: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .bell-btn {
+      position: relative;
+      background: none;
+      border: none;
+      color: #64748B;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bell-btn:hover {
+      background-color: #F1F5F9;
+      color: var(--text-main);
+    }
+
+    .bell-dot {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 7px;
+      height: 7px;
+      background-color: #EF4444;
+      border-radius: 50%;
+      border: 2px solid #FFFFFF;
+    }
+
+    .header-divider {
+      width: 1px;
+      height: 20px;
+      background-color: #E2E8F0;
+    }
+
+    .header-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .header-user .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563EB, #4F46E5);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-user-text h4 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .header-user-text span {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* ==========================================================================
+       SCROLLABLE DASHBOARD VIEWPORT
+       ========================================================================== */
+    .dashboard-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Common Card Styles */
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.2px;
+    }
+
+    .view-all-link {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .view-all-link:hover {
+      text-decoration: underline;
+    }
+
+    /* ==========================================================================
+       HERO CARD
+       ========================================================================== */
+    .hero-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 28px;
+      background-color: #FFFFFF;
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-text h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.4px;
+    }
+
+    .hero-text p.sub {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      margin-top: 3px;
+    }
+
+    .hero-text p.desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      max-width: 580px;
+      line-height: 1.45;
+    }
+
+    .hero-pills {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .hero-robot-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .speech-bubble {
+      background: #FFFFFF;
+      border: 1px solid #BFDBFE;
+      padding: 9px 13px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #1E3A8A;
+      position: relative;
+      max-width: 170px;
+      line-height: 1.3;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
+    }
+
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-width: 6px 0 6px 6px;
+      border-style: solid;
+      border-color: transparent transparent transparent #FFFFFF;
+    }
+
+    .speech-bubble::before {
+      content: '';
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-width: 7px 0 7px 7px;
+      border-style: solid;
+      border-color: transparent transparent transparent #BFDBFE;
+    }
+
+    .robot-svg-box {
+      width: 100px;
+      height: 100px;
+      filter: drop-shadow(0 8px 16px rgba(37, 99, 235, 0.12));
+    }
+
+    /* ==========================================================================
+       METRICS ROW (4 CARDS)
+       ========================================================================== */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .metric-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .metric-card:hover {
+      border-color: var(--border-card-hover);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .metric-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .metric-top span {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .metric-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .metric-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .metric-val {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.5px;
+    }
+
+    .metric-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: #059669;
+      background: #ECFDF5;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .metric-desc {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 3px;
+    }
+
+    /* ==========================================================================
+       3-COLUMN CORE WORKSPACE
+       ========================================================================== */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.35fr 1fr;
+      gap: 18px;
+    }
+
+    .column {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Chatbot Cards */
+    .chatbot-card {
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 14px;
+      background-color: #FAFAFC;
+      margin-top: 12px;
+    }
+
+    .chatbot-card:hover {
+      border-color: #93C5FD;
+      background-color: #FFFFFF;
+    }
+
+    .chatbot-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .bot-identity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .bot-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .bot-avatar.blue { background-color: #2563EB; }
+    .bot-avatar.purple { background: linear-gradient(135deg, #7C3AED, #6366F1); }
+
+    .bot-identity h4 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .bot-identity a {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .bot-identity a:hover {
+      color: var(--primary);
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      background-color: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .live-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background-color: #10B981;
+    }
+
+    .bot-metrics {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #EBEFF5;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .bot-metrics strong {
+      color: var(--text-main);
+    }
+
+    .bot-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #EBEFF5;
+    }
+
+    .btn-secondary {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      background-color: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      background-color: #F1F5F9;
+      color: var(--text-main);
+    }
+
+    .btn-primary-soft {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary);
+      background-color: var(--primary-light);
+      border: 1px solid #BFDBFE;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-primary-soft:hover {
+      background-color: #DBEAFE;
+    }
+
+    /* Quick Actions (5 Actions Grid) */
+    .quick-actions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .quick-action-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #334155;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .quick-action-item:hover {
+      background: #EFF6FF;
+      border-color: #93C5FD;
+      color: var(--primary);
+    }
+
+    .quick-action-item.create-btn {
+      background: #EFF6FF;
+      border-color: #BFDBFE;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .quick-action-item.create-btn:hover {
+      background: #DBEAFE;
+    }
+
+    .quick-action-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Usage Overview Line Chart */
+    .chart-container {
+      margin-top: 14px;
+      position: relative;
+      height: 160px;
+      width: 100%;
+    }
+
+    .chart-legend {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 11px;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .time-filter-pill {
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+      background-color: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .chart-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-sub);
+      margin-top: 6px;
+      padding: 0 4px;
+    }
+
+    /* Integration Panel */
+    .integration-tabs {
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid #E2E8F0;
+      padding-bottom: 8px;
+      margin-top: 12px;
+    }
+
+    .tab-btn {
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    .tab-btn.active {
+      background-color: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .code-box {
+      margin-top: 10px;
+      background-color: #070D18;
+      border: 1px solid #16233B;
+      border-radius: 10px;
+      padding: 12px;
+      position: relative;
+      font-family: monospace;
+      font-size: 11px;
+      color: #E2E8F0;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background-color: #1E293B;
+      border: 1px solid #334155;
+      color: #E2E8F0;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-family);
+    }
+
+    .copy-btn:hover {
+      background-color: #334155;
+      color: #FFFFFF;
+    }
+
+    .supported-platforms-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .platform-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 4px;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      font-size: 9px;
+      font-weight: 600;
+      color: #334155;
+      gap: 4px;
+    }
+
+    .platform-card:hover {
+      border-color: #93C5FD;
+      background-color: #EFF6FF;
+    }
+
+    /* Right Column: Upgrade & Activity */
+    .upgrade-card {
+      background: linear-gradient(135deg, #090F1D, #111A2E);
+      border: 1px solid #1A2840;
+      border-radius: 14px;
+      padding: 18px;
+      color: #FFFFFF;
+      position: relative;
+    }
+
+    .upgrade-tag {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      color: #60A5FA;
+      background: rgba(37, 99, 235, 0.2);
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .upgrade-card h3 {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .upgrade-card p {
+      font-size: 11px;
+      color: #94A3B8;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    .btn-upgrade {
+      margin-top: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-upgrade:hover {
+      background-color: var(--primary-hover);
+    }
+
+    /* Activity Items */
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 11px;
+    }
+
+    .activity-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .activity-content {
+      flex: 1;
+    }
+
+    .activity-content p.act-title {
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .activity-content p.act-desc {
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    .activity-time {
+      font-size: 10px;
+      color: var(--text-sub);
+      white-space: nowrap;
+    }
+
+    /* ==========================================================================
+       BOTTOM EXPLORE FEATURES SECTION & SUPPORT
+       ========================================================================== */
+    .bottom-section {
+      display: grid;
+      grid-template-columns: 2.3fr 1fr;
+      gap: 18px;
+      margin-top: 6px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .feature-box {
+      padding: 12px;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      background: #FAFAFC;
+    }
+
+    .feature-box:hover {
+      border-color: #93C5FD;
+      background: #FFFFFF;
+    }
+
+    .feature-box h4 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 6px;
+    }
+
+    .feature-box p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .feature-icon-badge {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .support-card {
+      background: #070D18;
+      border: 1px solid #142033;
+      border-radius: 14px;
+      padding: 20px;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .support-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .support-card p {
+      font-size: 11px;
+      color: #94A3B8;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    .btn-support {
+      margin-top: 14px;
+      background: #2563EB;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-support:hover {
+      background: #1D4ED8;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 18px;
+      border-top: 1px solid #E2E8F0;
+      font-size: 11px;
+      color: var(--text-sub);
+    }
+
+    .footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-left: 14px;
+    }
+
+    .footer a:hover {
+      color: var(--primary);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      display: none;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 14px;
+      width: 440px;
+      padding: 22px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      border: 1px solid #E2E8F0;
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: none;
+      border: none;
+      color: #94A3B8;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 4px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 12px;
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    .form-group input:focus {
+      border-color: var(--primary);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background-color: #0F172A;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.25s ease;
+      z-index: 200;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========================================================================= -->
+  <!-- LEFT SIDEBAR                                                              -->
+  <!-- ========================================================================= -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <!-- Brand -->
+      <div class="brand-container">
+        <div class="brand-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 4.5C6 3.67157 6.67157 3 7.5 3H13.25C15.8734 3 18 5.12665 18 7.75C18 9.27855 17.2798 10.6385 16.1601 11.5103C17.7882 12.396 18.875 14.1331 18.875 16.125C18.875 19.0935 16.4685 21.5 13.5 21.5H7.5C6.67157 21.5 6 20.8284 6 20V4.5Z" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M6 12H13.5C15.1569 12 16.5 13.3431 16.5 15C16.5 16.6569 15.1569 18 13.5 18H6" stroke="#93C5FD" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M11 7.5L14 7.5" stroke="#93C5FD" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>BiharStack AI</h1>
+          <p>AI for Every Business</p>
+        </div>
+      </div>
+
+      <!-- Navigation (1 to 9) -->
+      <ul class="nav-list">
+        <li>
+          <a href="#dashboard" class="nav-item active">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            </svg>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li>
+          <a href="#chatbots" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span>My Chatbots</span>
+          </a>
+        </li>
+        <li>
+          <a href="#kb" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <span>Knowledge Base</span>
+          </a>
+        </li>
+        <li>
+          <a href="#agents" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <span>AI Agents</span>
+          </a>
+        </li>
+        <li>
+          <a href="#api" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+            <span>API &amp; Developers</span>
+          </a>
+        </li>
+        <li>
+          <a href="#integrations" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            <span>Integrations</span>
+          </a>
+        </li>
+        <li>
+          <a href="#analytics" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <span>Analytics</span>
+          </a>
+        </li>
+        <li>
+          <a href="#billing" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            <span>Billing</span>
+          </a>
+        </li>
+        <li>
+          <a href="#settings" class="nav-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Settings</span>
+          </a>
+        </li>
+      </ul>
+
+      <!-- Promotional Mini Card -->
+      <div class="sidebar-promo">
+        <p class="title">Turn your website into an AI chatbot in 2 minutes!</p>
+        <p class="desc">No coding. No hassle. Add a simple script.</p>
+        <button onclick="openModal()">
+          <span style="font-size: 14px; font-weight: bold;">+</span> Create New Bot
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom User Section -->
+    <div class="sidebar-bottom">
+      <div class="user-profile">
+        <div class="user-info-wrap">
+          <div class="avatar-circle">AK</div>
+          <div class="user-details">
+            <h4>Aditya Kumar</h4>
+            <span>Free Plan</span>
+          </div>
+        </div>
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#94A3B8">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+
+      <div class="system-status">
+        <span>BiharStack AI v1.0</span>
+        <div class="status-badge">
+          <span class="status-dot-pulse"></span>
+          Operational
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========================================================================= -->
+  <!-- MAIN APP CONTAINER                                                        -->
+  <!-- ========================================================================= -->
+  <div class="app-main">
+
+    <!-- TOP HEADER -->
+    <header class="header">
+      <!-- Search Bar -->
+      <div class="search-box">
+        <svg class="search-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input type="text" id="searchInput" placeholder="Search anything... (e.g. chatbot, API, docs)" />
+        <span class="search-kbd">⌘K</span>
+      </div>
+
+      <!-- Right Header: Bell, User Profile, Arrow -->
+      <div class="header-right">
+        <button class="bell-btn" title="Notifications">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <span class="bell-dot"></span>
+        </button>
+
+        <div class="header-divider"></div>
+
+        <div class="header-user">
+          <div class="avatar">AK</div>
+          <div class="header-user-text">
+            <h4>Aditya Kumar</h4>
+            <span>Free Plan</span>
+          </div>
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#94A3B8">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+    </header>
+
+    <!-- DASHBOARD SCROLLABLE CONTAINER -->
+    <main class="dashboard-scroll">
+
+      <!-- ===================================================================== -->
+      <!-- 1. HERO SECTION                                                       -->
+      <!-- ===================================================================== -->
+      <section class="hero-card">
+        <div class="hero-text">
+          <h2>Welcome Back, Aditya! 👋</h2>
+          <p class="sub">Your AI journey is just getting started.</p>
+          <p class="desc">Create your first chatbot and turn your website into a 24/7 AI assistant in under 2 minutes.</p>
+
+          <div class="hero-pills">
+            <div class="hero-pill">
+              <span style="color: #2563EB; font-weight: bold;">&lt;/&gt;</span>
+              No Code
+            </div>
+            <div class="hero-pill">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#10B981">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              2 Minute Setup
+            </div>
+            <div class="hero-pill">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#8B5CF6">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+              </svg>
+              Website + Docs
+            </div>
+            <div class="hero-pill">
+              <span style="color: #D97706; font-weight: bold;">文A</span>
+              Multi-Language
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-robot-wrap">
+          <div class="speech-bubble">
+            Hello! How can I help you today?
+          </div>
+          <!-- Clean modern AI robot vector illustration -->
+          <div class="robot-svg-box">
+            <svg width="100%" height="100%" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="60" cy="60" r="48" fill="#EFF6FF"/>
+              <!-- Body -->
+              <rect x="42" y="66" width="36" height="38" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.8"/>
+              <rect x="53" y="76" width="14" height="16" rx="4" fill="#2563EB"/>
+              <path d="M57 80H61C62.5 80 63.5 80.8 63.5 82C63.5 83.2 62.5 84 61 84H57V80Z" fill="#93C5FD"/>
+              <path d="M57 84H61.5C63 84 64 85 64 86.2C64 87.5 63 88.5 61.5 88.5H57V84Z" fill="#93C5FD"/>
+              <!-- Head -->
+              <rect x="32" y="24" width="56" height="42" rx="18" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.8"/>
+              <!-- Visor Screen -->
+              <rect x="38" y="30" width="44" height="30" rx="12" fill="#0F172A"/>
+              <!-- Friendly Eyes -->
+              <path d="M45 44C45 41 49 41 51 44" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M69 44C69 41 73 41 75 44" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M57 51C58.5 53 61.5 53 63 51" stroke="#38BDF8" stroke-width="1.8" stroke-linecap="round"/>
+              <!-- Antenna -->
+              <path d="M60 24V17" stroke="#94A3B8" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="60" cy="15" r="3.5" fill="#2563EB"/>
+              <!-- Waving Hand -->
+              <path d="M42 70C34 66 30 58 28 50" stroke="#94A3B8" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="28" cy="49" r="4" fill="#2563EB"/>
+              <!-- Other Hand -->
+              <path d="M78 70C86 74 89 82 89 88" stroke="#94A3B8" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="89" cy="88" r="4" fill="#94A3B8"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- 2. FOUR CLEAN METRIC CARDS                                            -->
+      <!-- ===================================================================== -->
+      <section class="metrics-grid">
+        <!-- 1. Total Conversations -->
+        <div class="metric-card">
+          <div class="metric-top">
+            <span>Total Conversations</span>
+            <div class="metric-icon" style="background-color: #EFF6FF; color: #2563EB;">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-val">2,847</span>
+            <span class="metric-badge">↑ 12%</span>
+          </div>
+          <p class="metric-desc">vs last 7 days</p>
+        </div>
+
+        <!-- 2. Website Visitors -->
+        <div class="metric-card">
+          <div class="metric-top">
+            <span>Website Visitors</span>
+            <div class="metric-icon" style="background-color: #F5F3FF; color: #8B5CF6;">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-val">8,921</span>
+            <span class="metric-badge">↑ 18%</span>
+          </div>
+          <p class="metric-desc">vs last 7 days</p>
+        </div>
+
+        <!-- 3. Leads Collected -->
+        <div class="metric-card">
+          <div class="metric-top">
+            <span>Leads Collected</span>
+            <div class="metric-icon" style="background-color: #ECFDF5; color: #10B981;">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-val">142</span>
+            <span class="metric-badge">↑ 22%</span>
+          </div>
+          <p class="metric-desc">vs last 7 days</p>
+        </div>
+
+        <!-- 4. Avg. Response Time -->
+        <div class="metric-card">
+          <div class="metric-top">
+            <span>Avg. Response Time</span>
+            <div class="metric-icon" style="background-color: #FFFBEB; color: #F59E0B;">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-val">1.2s</span>
+            <span class="metric-badge" style="color: #059669; background-color: #ECFDF5;">↓ 45%</span>
+          </div>
+          <p class="metric-desc">vs last 7 days</p>
+        </div>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- 3. CORE 3-COLUMN WORKSPACE                                            -->
+      <!-- ===================================================================== -->
+      <section class="workspace-grid">
+
+        <!-- ============================== -->
+        <!-- COLUMN 1: YOUR CHATBOTS & QUICK ACTIONS -->
+        <!-- ============================== -->
+        <div class="column">
+          <!-- Chatbots Card -->
+          <div class="card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <h3 class="card-title">Your Chatbots</h3>
+              <a href="#chatbots" class="view-all-link">View All &rarr;</a>
+            </div>
+
+            <!-- Chatbot 1: BiharStack Demo -->
+            <div class="chatbot-card">
+              <div class="chatbot-header">
+                <div class="bot-identity">
+                  <div class="bot-avatar blue">B</div>
+                  <div>
+                    <h4>BiharStack Demo</h4>
+                    <a href="https://biharstack.com" target="_blank">https://biharstack.com</a>
+                  </div>
+                </div>
+                <span class="live-badge"><span class="live-dot"></span> Live</span>
+              </div>
+
+              <div class="bot-metrics">
+                <span><strong>1,243</strong> Conversations</span>
+                <span><strong>89</strong> Leads</span>
+                <span style="color: #10B981; font-weight: 700;">98% Accuracy</span>
+              </div>
+
+              <div class="bot-actions">
+                <button class="btn-secondary">Edit</button>
+                <button class="btn-primary-soft">Analytics</button>
+              </div>
+            </div>
+
+            <!-- Chatbot 2: Rizqora Support Bot -->
+            <div class="chatbot-card">
+              <div class="chatbot-header">
+                <div class="bot-identity">
+                  <div class="bot-avatar purple">R</div>
+                  <div>
+                    <h4>Rizqora Support Bot</h4>
+                    <a href="https://rizqora.in" target="_blank">https://rizqora.in</a>
+                  </div>
+                </div>
+                <span class="live-badge"><span class="live-dot"></span> Live</span>
+              </div>
+
+              <div class="bot-metrics">
+                <span><strong>864</strong> Conversations</span>
+                <span><strong>53</strong> Leads</span>
+                <span style="color: #10B981; font-weight: 700;">95% Accuracy</span>
+              </div>
+
+              <div class="bot-actions">
+                <button class="btn-secondary">Edit</button>
+                <button class="btn-primary-soft">Analytics</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions (5 Actions) -->
+          <div class="card">
+            <h3 class="card-title">Quick Actions</h3>
+            <div class="quick-actions-list">
+              <div class="quick-action-item create-btn" onclick="openModal()">
+                <div class="quick-action-left">
+                  <span style="font-size: 15px; font-weight: bold;">+</span>
+                  <span>Create AI Chatbot</span>
+                </div>
+                <span style="font-size: 11px;">&rarr;</span>
+              </div>
+
+              <div class="quick-action-item" onclick="switchSnippet('js')">
+                <div class="quick-action-left">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  <span>Connect Website</span>
+                </div>
+                <span style="font-size: 11px;">&rarr;</span>
+              </div>
+
+              <div class="quick-action-item">
+                <div class="quick-action-left">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                  <span>Add Knowledge Base</span>
+                </div>
+                <span style="font-size: 11px;">&rarr;</span>
+              </div>
+
+              <div class="quick-action-item">
+                <div class="quick-action-left">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  <span>Get API Key</span>
+                </div>
+                <span style="font-size: 11px;">&rarr;</span>
+              </div>
+
+              <div class="quick-action-item">
+                <div class="quick-action-left">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>View Documentation</span>
+                </div>
+                <span style="font-size: 11px;">&rarr;</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================== -->
+        <!-- COLUMN 2: USAGE OVERVIEW & INTEGRATION -->
+        <!-- ============================== -->
+        <div class="column">
+          <!-- Usage Overview -->
+          <div class="card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <h3 class="card-title">Usage Overview</h3>
+                <div class="chart-legend">
+                  <div class="legend-item">
+                    <span class="legend-dot" style="background-color: #2563EB;"></span>
+                    <span style="color: #2563EB;">Conversations</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-dot" style="background-color: #8B5CF6;"></span>
+                    <span style="color: #8B5CF6;">Leads</span>
+                  </div>
+                </div>
+              </div>
+              <span class="time-filter-pill">Last 7 days</span>
+            </div>
+
+            <!-- SVG Smooth Dual Line Chart -->
+            <div class="chart-container">
+              <svg width="100%" height="100%" viewBox="0 0 450 150" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#2563EB" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#2563EB" stop-opacity="0.0"/>
+                  </linearGradient>
+                  <linearGradient id="purpleGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.0"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Gridlines -->
+                <line x1="0" y1="30" x2="450" y2="30" stroke="#F1F5F9" stroke-width="1" stroke-dasharray="3 3"/>
+                <line x1="0" y1="75" x2="450" y2="75" stroke="#F1F5F9" stroke-width="1" stroke-dasharray="3 3"/>
+                <line x1="0" y1="120" x2="450" y2="120" stroke="#F1F5F9" stroke-width="1" stroke-dasharray="3 3"/>
+
+                <!-- Purple Curve (Leads) -->
+                <path d="M 0 120 C 70 115, 140 105, 210 90 C 280 75, 360 55, 450 40 L 450 145 L 0 145 Z" fill="url(#purpleGrad)"/>
+                <path d="M 0 120 C 70 115, 140 105, 210 90 C 280 75, 360 55, 450 40" fill="none" stroke="#8B5CF6" stroke-width="2.2" stroke-linecap="round"/>
+
+                <!-- Blue Curve (Conversations) -->
+                <path d="M 0 100 C 60 70, 130 110, 200 75 C 270 45, 350 60, 450 18 L 450 145 L 0 145 Z" fill="url(#blueGrad)"/>
+                <path d="M 0 100 C 60 70, 130 110, 200 75 C 270 45, 350 60, 450 18" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round"/>
+
+                <circle cx="200" cy="75" r="3.5" fill="#2563EB" stroke="#FFFFFF" stroke-width="1.8"/>
+                <circle cx="450" cy="18" r="4" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+                <circle cx="450" cy="40" r="3.5" fill="#8B5CF6" stroke="#FFFFFF" stroke-width="1.8"/>
+              </svg>
+
+              <div class="chart-labels">
+                <span>Sep 22</span>
+                <span>Sep 23</span>
+                <span>Sep 24</span>
+                <span>Sep 25</span>
+                <span>Sep 26</span>
+                <span>Sep 27</span>
+                <span style="color: #2563EB; font-weight: 700;">Sep 28</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Website Integration Panel -->
+          <div class="card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <h3 class="card-title">Integrate With Your Website</h3>
+              <span style="font-size: 10px; font-weight: 600; color: #059669; background: #ECFDF5; padding: 2px 6px; border-radius: 4px;">&lt; 2 min setup</span>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+              Add a simple script and your chatbot will be live instantly.
+            </p>
+
+            <div class="integration-tabs">
+              <button class="tab-btn active" id="tab-btn-js" onclick="switchSnippet('js')">JavaScript</button>
+              <button class="tab-btn" id="tab-btn-react" onclick="switchSnippet('react')">React</button>
+              <button class="tab-btn" id="tab-btn-wordpress" onclick="switchSnippet('wordpress')">WordPress</button>
+            </div>
+
+            <div class="code-box">
+              <button class="copy-btn" onclick="copyCode()">
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span id="copyText">Copy</span>
+              </button>
+              <pre id="codeDisplay" style="margin: 0;"><code>&lt;script
+  src="https://cdn.biharstack.ai/widget.js"
+  data-bot-id="YOUR_BOT_ID"&gt;
+&lt;/script&gt;</code></pre>
+            </div>
+
+            <!-- Supported Platforms -->
+            <div style="margin-top: 14px;">
+              <span style="font-size: 11px; font-weight: 600; color: #475569;">Supported Platforms</span>
+              <div class="supported-platforms-grid">
+                <div class="platform-card" title="WordPress">
+                  <span style="color: #21759B; font-weight: bold; font-size: 12px;">W</span>
+                  <span>WordPress</span>
+                </div>
+                <div class="platform-card" title="Shopify">
+                  <span style="color: #95BF47; font-weight: bold; font-size: 12px;">S</span>
+                  <span>Shopify</span>
+                </div>
+                <div class="platform-card" title="Webflow">
+                  <span style="color: #146EF5; font-weight: bold; font-size: 12px;">Wf</span>
+                  <span>Webflow</span>
+                </div>
+                <div class="platform-card" title="Wix">
+                  <span style="color: #0F172A; font-weight: bold; font-size: 12px;">Wix</span>
+                  <span>Wix</span>
+                </div>
+                <div class="platform-card" title="Custom Website">
+                  <span style="color: #7C3AED; font-weight: bold; font-size: 12px;">&lt;/&gt;</span>
+                  <span>Custom</span>
+                </div>
+                <div class="platform-card" title="API">
+                  <span style="color: #10B981; font-weight: bold; font-size: 12px;">API</span>
+                  <span>API</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================== -->
+        <!-- COLUMN 3: UPGRADE & RECENT ACTIVITY -->
+        <!-- ============================== -->
+        <div class="column">
+          <!-- Small Premium Upgrade Card -->
+          <div class="upgrade-card">
+            <span class="upgrade-tag">Upgrade to Pro</span>
+            <h3>Get more bots, API access, voice &amp; calling features.</h3>
+            <p>Scale your business effortlessly with dedicated servers and custom training.</p>
+            <button class="btn-upgrade">
+              <span>View Plans</span>
+              <span>&rarr;</span>
+            </button>
+          </div>
+
+          <!-- Recent Activity (4 activity items) -->
+          <div class="card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <h3 class="card-title">Recent Activity</h3>
+              <span style="font-size: 11px; color: var(--text-sub);">Real-time</span>
+            </div>
+
+            <div class="activity-list">
+              <!-- Item 1 -->
+              <div class="activity-item">
+                <span class="activity-dot" style="background-color: #10B981;"></span>
+                <div class="activity-content">
+                  <p class="act-title">New conversation</p>
+                  <p class="act-desc">From biharstack.com</p>
+                </div>
+                <span class="activity-time">2m ago</span>
+              </div>
+
+              <!-- Item 2 -->
+              <div class="activity-item">
+                <span class="activity-dot" style="background-color: #8B5CF6;"></span>
+                <div class="activity-content">
+                  <p class="act-title">Lead collected</p>
+                  <p class="act-desc">From rizqora.in</p>
+                </div>
+                <span class="activity-time">12m ago</span>
+              </div>
+
+              <!-- Item 3 -->
+              <div class="activity-item">
+                <span class="activity-dot" style="background-color: #2563EB;"></span>
+                <div class="activity-content">
+                  <p class="act-title">Knowledge base updated</p>
+                  <p class="act-desc">Added 3 new documents</p>
+                </div>
+                <span class="activity-time">1h ago</span>
+              </div>
+
+              <!-- Item 4 -->
+              <div class="activity-item">
+                <span class="activity-dot" style="background-color: #F59E0B;"></span>
+                <div class="activity-content">
+                  <p class="act-title">API key created</p>
+                  <p class="act-desc">For project: MyApp</p>
+                </div>
+                <span class="activity-time">3h ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- 4. BOTTOM FEATURES & SUPPORT CARD                                     -->
+      <!-- ===================================================================== -->
+      <section class="bottom-section">
+        <!-- 6 Clean Feature Cards -->
+        <div class="card">
+          <h3 class="card-title">Explore More Features</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Powerful tools to grow your business with AI.</p>
+
+          <div class="features-grid">
+            <!-- 1. AI Agents -->
+            <div class="feature-box">
+              <div class="feature-icon-badge" style="background: #EFF6FF; color: #2563EB;">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h4>AI Agents</h4>
+              <p>Sales, Support, Lead</p>
+            </div>
+
+            <!-- 2. Voice Agent -->
+            <div class="feature-box">
+              <div class="feature-icon-badge" style="background: #F5F3FF; color: #8B5CF6;">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </div>
+              <h4>Voice Agent</h4>
+              <p>Voice &amp; Call AI</p>
+            </div>
+
+            <!-- 3. WhatsApp Agent -->
+            <div class="feature-box">
+              <div class="feature-icon-badge" style="background: #ECFDF5; color: #10B981;">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h4>WhatsApp Agent</h4>
+              <p>Chat on WhatsApp</p>
+            </div>
+
+            <!-- 4. API Access -->
+            <div class="feature-box">
+              <div class="feature-icon-badge" style="background: #FFFBEB; color: #F59E0B;">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+              </div>
+              <h4>API Access</h4>
+              <p>Integrate your app</p>
+            </div>
+
+            <!-- 5. Analytics -->
+            <div class="feature-box">
+              <div class="feature-icon-badge" style="background: #EFF6FF; color: #2563EB;">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h4>Analytics</h4>
+              <p>Track performance</p>
+            </div>
+
+            <!-- 6. Multi-Language -->
+            <div class="feature-box">
+              <div class="feature-icon-badge" style="background: #EEF2FF; color: #6366F1;">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h4>Multi-Language</h4>
+              <p>Global reach</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dark Premium Support Card -->
+        <div class="support-card">
+          <div>
+            <div style="width: 32px; height: 32px; border-radius: 8px; background: #2563EB; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </div>
+            <h3>Need Help?</h3>
+            <p>Our team is here for you. We provide 24/7 technical integration assistance.</p>
+          </div>
+
+          <button class="btn-support">
+            <span>Contact Support</span>
+            <span>&rarr;</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- 5. FOOTER                                                             -->
+      <!-- ===================================================================== -->
+      <footer class="footer">
+        <div>
+          <strong style="color: #334155;">BiharStack AI</strong> &bull; <span>Build. Integrate. Grow.</span>
+        </div>
+        <div>
+          <a href="#docs">Docs</a>
+          <a href="#support">Support</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#terms">Terms</a>
+        </div>
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: CREATE CHATBOT                                                     -->
+  <!-- ========================================================================= -->
+  <div class="modal-overlay" id="botModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <div class="modal-header">
+        <div class="brand-logo" style="width: 32px; height: 32px;">B</div>
+        <div>
+          <h3 style="font-size: 14px; font-weight: bold; color: var(--text-main);">Create AI Chatbot</h3>
+          <p style="font-size: 11px; color: var(--text-muted);">Ready in under 2 minutes.</p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Chatbot Name</label>
+        <input type="text" id="modalBotName" value="Customer Support Bot" />
+      </div>
+
+      <div class="form-group">
+        <label>Website URL</label>
+        <input type="text" id="modalBotUrl" value="https://biharstack.com" />
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-upgrade" style="margin-top: 0; background-color: var(--primary);" onclick="submitModal()">Create Bot &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#10B981">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+    </svg>
+    <span id="toastText">Copied to clipboard!</span>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC (Zero external dependency) -->
+  <script>
+    const codeTemplates = {
+      js: `<script\n  src="https://cdn.biharstack.ai/widget.js"\n  data-bot-id="YOUR_BOT_ID">\n<\/script>`,
+      react: `import Script from 'next/script';\n\n<Script\n  src="https://cdn.biharstack.ai/widget.js"\n  data-bot-id="YOUR_BOT_ID"\n  strategy="lazyOnload"\n/>`,
+      wordpress: `<script\n  src="https://cdn.biharstack.ai/widget.js"\n  data-bot-id="YOUR_BOT_ID">\n<\/script>`
+    };
+
+    let activeLang = 'js';
+
+    function switchSnippet(lang) {
+      activeLang = lang;
+      ['js', 'react', 'wordpress'].forEach(id => {
+        const btn = document.getElementById('tab-btn-' + id);
+        if (id === lang) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      document.getElementById('codeDisplay').textContent = codeTemplates[lang];
+    }
+
+    function copyCode() {
+      const text = codeTemplates[activeLang];
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Snippet copied to clipboard!");
+        const copyText = document.getElementById('copyText');
+        copyText.textContent = "Copied!";
+        setTimeout(() => {
+          copyText.textContent = "Copy";
+        }, 2000);
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+
+    function openModal() {
+      document.getElementById('botModal').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('botModal').classList.remove('open');
+    }
+
+    function submitModal() {
+      closeModal();
+      showToast("Creating your AI chatbot... Ready in ~45 seconds!");
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('searchInput').focus();
+      }
+    });
+  </script>
+</body>
+</html>

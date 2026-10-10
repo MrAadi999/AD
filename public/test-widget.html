@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BiharStack AI - Widget Test Page</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      background: #f8fafc;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card {
+      max-width: 640px;
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    h1 {
+      font-size: 24px;
+      margin-top: 0;
+      margin-bottom: 12px;
+      color: #1e293b;
+    }
+    p {
+      color: #64748b;
+      line-height: 1.6;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+    .code-box {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    .hint {
+      background: #f1f5f9;
+      border-left: 4px solid #3b82f6;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #334155;
+      border-radius: 0 8px 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">Live Embed Test</span>
+    <h1>Your Website Powered by BiharStack AI</h1>
+    <p>
+      This demo page simulates an external customer website (WordPress, Shopify, Webflow, or custom HTML). Notice how the floating AI chat button appears at the bottom-right corner!
+    </p>
+
+    <div class="hint">
+      👉 Click the floating circular chat bubble in the bottom right corner to test the AI assistant.
+    </div>
+
+    <div class="code-box">
+&lt;!-- Single Embed Snippet --&gt;
+&lt;script
+  src="/widget.js"
+  data-bot-id="bot-demo-01"&gt;
+&lt;/script&gt;
+    </div>
+
+    <p>
+      The widget runs entirely in an isolated <strong>Shadow DOM</strong>, preventing host CSS conflicts and preserving responsive mobile and desktop usability.
+    </p>
+  </div>
+
+  <!-- BiharStack AI Widget Script -->
+  <script
+    src="/widget.js"
+    data-bot-id="bot-demo-01">
+  </script>
+</body>
+</html>
