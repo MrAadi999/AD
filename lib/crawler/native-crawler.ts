@@ -43,6 +43,10 @@ export interface ExtractedPageData {
     addresses: string[];
     pricing: string[];
     faqs: Array<{ question: string; answer: string }>;
+    buttons?: Array<{ label: string; action: string; type: string }>;
+    policies?: Record<string, string>;
+    socials?: Record<string, string>;
+    framer_search_url?: string;
   };
 }
 
@@ -271,7 +275,7 @@ function extractPageEntitiesAndContent(html: string, pageUrl: string): Extracted
     }
   }
 
-  // 2. Direct href attributes for tel, mailto, whatsapp
+  // 2. Direct href attributes for tel, mailto, whatsapp, socials & policies
   const telMatches = Array.from(html.matchAll(/href=["']tel:([^"'\s]+)["']/gi));
   for (const tm of telMatches) entities.phones.push(tm[1].trim());
 
@@ -280,6 +284,62 @@ function extractPageEntitiesAndContent(html: string, pageUrl: string): Extracted
 
   const waMatches = Array.from(html.matchAll(/(?:wa\.me\/|phone=|\/send\?phone=)([0-9+]+)/gi));
   for (const wm of waMatches) entities.whatsapp.push(wm[1].trim());
+
+  // Check for Framer Search Index (Floto, modern Framer sites)
+  const framerMatch = html.match(/<meta[^>]+name=["']framer-search-index(?:-fallback)?["'][^>]+content=["']([^"']+)["']/i);
+  if (framerMatch) {
+    entities.framer_search_url = framerMatch[1].trim();
+  }
+
+  // Extract Buttons & Interactive Action Elements (Floto-style Inspection)
+  entities.buttons = [];
+  const buttonMatches = Array.from(html.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/gi));
+  for (const bm of buttonMatches) {
+    const bText = bm[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (bText && bText.length >= 2 && bText.length <= 40) {
+      entities.buttons.push({
+        label: bText,
+        action: 'Interactive Action / Modal Trigger',
+        type: 'Button',
+      });
+    }
+  }
+  const ctaLinkMatches = Array.from(html.matchAll(/<a[^>]+class=["'][^"']*(?:btn|button|cta|action|link)[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi));
+  for (const clm of ctaLinkMatches) {
+    const lText = clm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (lText && lText.length >= 2 && lText.length <= 40) {
+      entities.buttons.push({
+        label: lText,
+        action: clm[1],
+        type: 'Call To Action',
+      });
+    }
+  }
+  const seenButtons = new Set<string>();
+  entities.buttons = entities.buttons.filter((b) => {
+    const key = b.label.toLowerCase();
+    if (seenButtons.has(key)) return false;
+    seenButtons.add(key);
+    return true;
+  }).slice(0, 15);
+
+  // Extract Policy & Social links
+  entities.policies = {};
+  entities.socials = {};
+  const allLinks = Array.from(html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi));
+  for (const l of allLinks) {
+    const href = l[1].toLowerCase();
+    const txt = l[2].replace(/<[^>]+>/g, '').trim().toLowerCase();
+    if (href.includes('privacy') || txt.includes('privacy')) entities.policies['privacy'] = l[1];
+    else if (href.includes('terms') || txt.includes('terms')) entities.policies['terms'] = l[1];
+    else if (href.includes('refund') || txt.includes('refund')) entities.policies['refund'] = l[1];
+
+    if (href.includes('twitter.com') || href.includes('x.com')) entities.socials['twitter'] = l[1];
+    else if (href.includes('linkedin.com')) entities.socials['linkedin'] = l[1];
+    else if (href.includes('discord.gg') || href.includes('discord.com')) entities.socials['discord'] = l[1];
+    else if (href.includes('github.com')) entities.socials['github'] = l[1];
+    else if (href.includes('instagram.com')) entities.socials['instagram'] = l[1];
+  }
 
   // 3. Extract Clean Content Text
   const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -574,9 +634,51 @@ export async function runNativeCrawl(
         if (!existsAlready) {
           jobState.pages.push(extracted);
           jobState.pages_processed++;
+
+          // Aggregate interactive buttons & actions
+          if (!jobState.discovered_buttons) jobState.discovered_buttons = [];
+          if (extracted.entities.buttons && Array.isArray(extracted.entities.buttons)) {
+            for (const b of extracted.entities.buttons) {
+              if (!jobState.discovered_buttons.some((db) => db.label.toLowerCase() === b.label.toLowerCase())) {
+                jobState.discovered_buttons.push({ ...b, page_url: extracted.url });
+              }
+            }
+          }
+
+          jobState.current_action = `Inspected and extracted ${extracted.entities.buttons?.length || 0} buttons & content on ${extracted.url}`;
+          persistState();
         }
       } else {
         jobState.pages_failed++;
+      }
+
+      // Check for Framer Search Index (Floto, modern Framer sites)
+      if (extracted.entities.framer_search_url && !visited.has('__framer_index_visited__')) {
+        visited.add('__framer_index_visited__');
+        try {
+          const fRes = await fetch(extracted.entities.framer_search_url, {
+            headers: BROWSER_HEADERS,
+            signal: AbortSignal.timeout(8000),
+          });
+          if (fRes.ok) {
+            const fData = await fRes.json();
+            const parsedStart = new URL(startUrl);
+            const rootOrigin = `${parsedStart.protocol}//${parsedStart.host}`;
+            for (const path of Object.keys(fData)) {
+              if (path === '/404') continue;
+              const fullFramerUrl = normalizeUrl(new URL(path, rootOrigin).toString());
+              if (!visited.has(fullFramerUrl) && isSameDomain(startUrl, fullFramerUrl)) {
+                visited.add(fullFramerUrl);
+                queue.push(fullFramerUrl);
+                jobState.pages_discovered++;
+              }
+            }
+            console.log(`[UNIVERSAL CRAWLER] Loaded Framer search index with ${Object.keys(fData).length} routes`);
+            persistState();
+          }
+        } catch (err: any) {
+          console.warn('[UNIVERSAL CRAWLER] Framer index fetch error:', err.message);
+        }
       }
 
       // Discover internal links

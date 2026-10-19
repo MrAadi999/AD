@@ -62,6 +62,8 @@ export async function GET(request: NextRequest) {
           pages_processed: fileData.pages_processed || 0,
           pages_failed: fileData.pages_failed || 0,
           current_page: fileData.current_page || null,
+          current_action: fileData.current_action || (inMemoryCrawlJobs.get(jobId)?.current_action || null),
+          discovered_buttons: fileData.discovered_buttons || (inMemoryCrawlJobs.get(jobId)?.discovered_buttons || []),
           error_message: fileData.error_message || null,
           started_at: fileData.started_at || null,
           completed_at: fileData.completed_at || null,

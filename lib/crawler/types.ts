@@ -10,6 +10,17 @@ export interface KnowledgeSource {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   word_count: number;
   chunks_count?: number;
+  entities?: {
+    phones?: string[];
+    emails?: string[];
+    whatsapp?: string[];
+    addresses?: string[];
+    pricing?: string[];
+    faqs?: Array<{ question: string; answer: string }>;
+    buttons?: Array<{ label: string; action: string; type: string }>;
+    policies?: Record<string, string>;
+    socials?: Record<string, string>;
+  };
   crawled_at: string;
   created_at: string;
   updated_at: string;
@@ -28,6 +39,8 @@ export interface CrawlJob {
   error_message?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
+  current_action?: string | null;
+  discovered_buttons?: Array<{ label: string; action: string; type: string; page_url?: string }>;
   created_at: string;
   updated_at: string;
 }

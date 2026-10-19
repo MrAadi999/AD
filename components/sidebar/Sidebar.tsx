@@ -17,6 +17,7 @@ import {
   LogOut,
   X,
   Sparkles,
+  Target,
 } from 'lucide-react';
 import { useAuth } from '@/lib/supabase/auth-context';
 
@@ -28,6 +29,7 @@ interface SidebarProps {
 
 const navItems = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
+  { name: 'Client Hunter (CEO)', icon: Target, href: '/clients', badge: 'GET CLIENTS' },
   { name: 'AD Model Hub', icon: Sparkles, href: '/model-ad', badge: 'AI MODEL' },
   { name: 'My Chatbots', icon: Bot, href: '/my-chatbots', count: 2 },
   { name: 'Knowledge Base', icon: BookOpen, href: '/knowledge-base' },

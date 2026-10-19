@@ -62,6 +62,7 @@ class WebsiteCrawler:
         self.pages_failed = 0
         self.status = "queued"
         self.error_message: Optional[str] = None
+        self._framer_data_cache: Optional[Dict[str, Any]] = None
 
     def _notify_progress(self, current_page: Optional[str] = None):
         progress = CrawlJobProgress(
@@ -163,9 +164,10 @@ class WebsiteCrawler:
         """
         Probe standard sitemap locations to pre-discover deep site links
         (/sitemap.xml, /sitemap_index.xml, /wp-sitemap.xml).
+        Supports recursive child sitemap index parsing and high-value business path fallbacks.
         """
         import re
-        from urllib.parse import urlparse
+        from urllib.parse import urlparse, urljoin
         parsed = urlparse(self.start_url)
         base = f"{parsed.scheme}://{parsed.netloc}"
         candidates = [
@@ -180,14 +182,47 @@ class WebsiteCrawler:
                 if res.status_code == 200 and ("xml" in res.headers.get("content-type", "") or "<urlset" in res.text or "<sitemapindex" in res.text):
                     locs = re.findall(r"<loc>\s*(https?://[^<]+)\s*</loc>", res.text, re.IGNORECASE)
                     for loc in locs:
-                        norm = normalize_url(loc.strip())
-                        if norm and is_crawlable_url(norm) and is_same_domain(self.start_url, norm, allow_subdomains=self.config.allow_subdomains):
-                            discovered.append(norm)
+                        loc_clean = loc.strip()
+                        # If child sitemap index (e.g. page-sitemap.xml)
+                        if loc_clean.endswith(".xml") and is_same_domain(self.start_url, loc_clean, allow_subdomains=self.config.allow_subdomains):
+                            try:
+                                sub_res = await client.get(loc_clean, timeout=4.0, follow_redirects=True)
+                                if sub_res.status_code == 200:
+                                    sub_locs = re.findall(r"<loc>\s*(https?://[^<]+)\s*</loc>", sub_res.text, re.IGNORECASE)
+                                    for sub_l in sub_locs[:30]:
+                                        sub_norm = normalize_url(sub_l.strip())
+                                        if sub_norm and is_crawlable_url(sub_norm) and is_same_domain(self.start_url, sub_norm, allow_subdomains=self.config.allow_subdomains):
+                                            discovered.append(sub_norm)
+                            except Exception:
+                                pass
+                        else:
+                            norm = normalize_url(loc_clean)
+                            if norm and is_crawlable_url(norm) and is_same_domain(self.start_url, norm, allow_subdomains=self.config.allow_subdomains):
+                                discovered.append(norm)
+
                     if discovered:
                         logger.info(f"Discovered {len(discovered)} links via sitemap: {sitemap_url}")
                         break
             except Exception:
                 continue
+
+        # Also add standard high-value business routes if not already discovered
+        standard_high_value = [
+            "/about",
+            "/pricing",
+            "/contact",
+            "/services",
+            "/privacy-policy",
+            "/terms-of-service",
+            "/terms",
+            "/faq",
+            "/frequently-asked-questions"
+        ]
+        for sp in standard_high_value:
+            cand = normalize_url(urljoin(base, sp))
+            if cand and is_crawlable_url(cand) and cand not in discovered:
+                discovered.append(cand)
+
         return list(dict.fromkeys(discovered))
 
     async def crawl(self) -> List[ExtractedPage]:
@@ -437,6 +472,56 @@ class WebsiteCrawler:
                 base_url=self.start_url,
                 allow_subdomains=self.config.allow_subdomains,
             )
+
+            # Modern Framework Ingestion Engine (Framer, Next.js, Webflow)
+            framer_search_url = extracted.entities.get("framer_search_url")
+            if framer_search_url and self._framer_data_cache is None:
+                try:
+                    f_resp = await client.get(framer_search_url, timeout=8.0)
+                    if f_resp.status_code == 200:
+                        self._framer_data_cache = f_resp.json()
+                        logger.info(f"Loaded Framer search index with {len(self._framer_data_cache)} routes")
+                except Exception as fe:
+                    logger.warning(f"Unable to fetch Framer search index: {fe}")
+
+            if self._framer_data_cache:
+                from urllib.parse import urlparse, urljoin
+                parsed_cur = urlparse(url)
+                cur_path = parsed_cur.path or "/"
+                pdata = self._framer_data_cache.get(cur_path) or self._framer_data_cache.get(cur_path.rstrip("/"))
+                if pdata:
+                    blocks = []
+                    if pdata.get("description"):
+                        blocks.append(f"Description: {pdata['description']}")
+                    for h in pdata.get("h1", []):
+                        blocks.append(f"\n# {h}\n")
+                    for h in pdata.get("h2", []) + pdata.get("h3", []):
+                        blocks.append(f"\n## {h}\n")
+                    for h in pdata.get("h4", []) + pdata.get("h5", []) + pdata.get("h6", []):
+                        blocks.append(f"\n### {h}\n")
+                    for p in pdata.get("p", []):
+                        if len(p.strip()) > 3:
+                            blocks.append(p.strip())
+                    if blocks:
+                        f_text = "\n\n".join(blocks)
+                        if len(f_text.split()) > extracted.word_count:
+                            extracted.content = f_text + ("\n\n" + extracted.content if extracted.content else "")
+                            extracted.word_count = len(extracted.content.split())
+                            extracted.status = "completed"
+                            extracted.error_message = None
+                            if pdata.get("title") and ("Untitled" in extracted.title or not extracted.title):
+                                extracted.title = pdata["title"]
+
+                # Automatically discover all pages from the Framer index
+                parsed_root = urlparse(self.start_url)
+                root_origin = f"{parsed_root.scheme}://{parsed_root.netloc}"
+                for path in self._framer_data_cache.keys():
+                    if path in ("/404", "/404/"):
+                        continue
+                    full_u = normalize_url(urljoin(root_origin, path))
+                    if full_u and is_crawlable_url(full_u) and full_u not in extracted.discovered_links:
+                        extracted.discovered_links.append(full_u)
+
             return extracted
 
         except httpx.TimeoutException:

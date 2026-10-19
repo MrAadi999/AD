@@ -26,7 +26,7 @@ BOILERPLATE_PATTERNS = re.compile(
 
 def extract_structured_business_data(soup: BeautifulSoup, raw_html: str, url: str) -> Dict[str, Any]:
     """
-    Mine critical business entities from JSON-LD, headers, footers, and microdata.
+    Mine critical business entities from JSON-LD, headers, footers, microdata, and framework meta.
     """
     data: Dict[str, Any] = {
         "phones": [],
@@ -36,8 +36,16 @@ def extract_structured_business_data(soup: BeautifulSoup, raw_html: str, url: st
         "opening_hours": [],
         "pricing": [],
         "faqs": [],
+        "socials": {},
+        "policies": {},
         "organization": {},
+        "framer_search_url": None,
     }
+
+    # 0. Check for Framer search index metadata (Floto, modern Framer sites)
+    framer_meta = soup.find("meta", attrs={"name": re.compile(r"framer-search-index", re.I)})
+    if framer_meta and framer_meta.get("content"):
+        data["framer_search_url"] = framer_meta["content"].strip()
 
     # 1. JSON-LD Schema.org extraction
     for script in soup.find_all("script", type=lambda t: t and "ld+json" in t.lower()):
@@ -122,22 +130,43 @@ def extract_structured_business_data(soup: BeautifulSoup, raw_html: str, url: st
         except Exception:
             continue
 
-    # 2. Extract Phone, Email & WhatsApp links
+    # 2. Extract Phone, Email, WhatsApp, Socials & Policy links
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
-        if href.lower().startswith("tel:"):
+        href_lower = href.lower()
+        if href_lower.startswith("tel:"):
             num = href[4:].strip()
             if len(re.sub(r"\D", "", num)) >= 7:
                 data["phones"].append(num)
-        elif "wa.me/" in href or "api.whatsapp.com/send" in href:
+        elif "wa.me/" in href_lower or "api.whatsapp.com/send" in href_lower:
             match = re.search(r"phone=([0-9+]+)|wa\.me/([0-9+]+)", href)
             if match:
                 wa_num = match.group(1) or match.group(2)
                 data["whatsapp"].append(wa_num)
-        elif href.lower().startswith("mailto:"):
+        elif href_lower.startswith("mailto:"):
             mail = href[7:].split("?")[0].strip()
             if "@" in mail and "." in mail:
                 data["emails"].append(mail)
+        # Social links
+        elif "twitter.com/" in href_lower or "x.com/" in href_lower:
+            data["socials"]["twitter"] = href
+        elif "linkedin.com/" in href_lower:
+            data["socials"]["linkedin"] = href
+        elif "discord.gg/" in href_lower or "discord.com/invite" in href_lower:
+            data["socials"]["discord"] = href
+        elif "github.com/" in href_lower and "github.com/login" not in href_lower:
+            data["socials"]["github"] = href
+        elif "instagram.com/" in href_lower:
+            data["socials"]["instagram"] = href
+        elif "youtube.com/" in href_lower:
+            data["socials"]["youtube"] = href
+        # Policy links
+        if "privacy" in href_lower:
+            data["policies"]["privacy"] = href
+        elif "terms" in href_lower:
+            data["policies"]["terms"] = href
+        elif "refund" in href_lower or "cancellation" in href_lower:
+            data["policies"]["refund"] = href
 
     # 3. Dedicated header & footer text scanning before removal
     header_footer_text = ""
@@ -288,23 +317,49 @@ def extract_page_content(
         for element in soup.find_all(tag_name):
             element.decompose()
 
-    # 7. Remove script tags
+    # 7. Extract Next.js / Nuxt structured state before script decomposition
+    next_data_strings: List[str] = []
+    next_script = soup.find("script", id="__NEXT_DATA__")
+    if next_script and next_script.string:
+        try:
+            next_payload = json.loads(next_script.string)
+            def harvest_next_strings(val):
+                if isinstance(val, dict):
+                    for k, v in val.items():
+                        if k in ("__N_SSP", "__N_SSG", "page", "query", "buildId"):
+                            continue
+                        harvest_next_strings(v)
+                elif isinstance(val, list):
+                    for item in val:
+                        harvest_next_strings(item)
+                elif isinstance(val, str):
+                    s = val.strip()
+                    if len(s) > 25 and not s.startswith("http") and not s.startswith("/") and "<html" not in s:
+                        next_data_strings.append(s)
+            harvest_next_strings(next_payload.get("props", {}))
+        except Exception:
+            pass
+
     for script in soup.find_all("script"):
         script.decompose()
 
     # 8. Remove elements with boilerplate class/id or hidden styles
     for element in soup.find_all(True):
-        style = element.get("style", "").lower()
+        if not hasattr(element, "attrs") or element.attrs is None:
+            continue
+
+        style = str(element.attrs.get("style", "")).lower()
         if "display:none" in style or "visibility:hidden" in style:
             element.decompose()
             continue
 
-        if element.get("hidden") is not None or element.get("aria-hidden") == "true":
+        if element.attrs.get("hidden") is not None or element.attrs.get("aria-hidden") == "true":
             element.decompose()
             continue
 
-        classes = " ".join(element.get("class", [])) if isinstance(element.get("class"), list) else str(element.get("class", ""))
-        elem_id = str(element.get("id", ""))
+        classes_val = element.attrs.get("class", [])
+        classes = " ".join(classes_val) if isinstance(classes_val, list) else str(classes_val)
+        elem_id = str(element.attrs.get("id", ""))
         combined_attr = f"{classes} {elem_id}"
 
         if element.name not in ("body", "html", "main", "article", "footer", "header") and BOILERPLATE_PATTERNS.search(combined_attr):
@@ -319,10 +374,10 @@ def extract_page_content(
         content_blocks.append(f"Description: {meta_desc}")
 
     # Extract headings, paragraphs, list items, and table cells in document order
-    for elem in main_container.find_all(["h1", "h2", "h3", "h4", "p", "li", "blockquote", "th", "td"]):
+    for elem in main_container.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "blockquote", "th", "td"]):
         text = elem.get_text(separator=" ", strip=True)
         if text and len(text) > 3:
-            if elem.name in ("h1", "h2", "h3", "h4"):
+            if elem.name in ("h1", "h2", "h3", "h4", "h5", "h6"):
                 content_blocks.append(f"\n## {text}\n")
             elif elem.name == "li":
                 content_blocks.append(f"• {text}")
@@ -330,6 +385,26 @@ def extract_page_content(
                 content_blocks.append(f"| {text} |")
             else:
                 content_blocks.append(text)
+
+    # Smart DOM Fallback: If standard headings/paragraphs were sparse (modern SPAs / React / Framer / Webflow)
+    total_words_so_far = sum(len(b.split()) for b in content_blocks)
+    if total_words_so_far < 40:
+        seen_texts = set(b.strip() for b in content_blocks)
+        for container in main_container.find_all(["div", "span", "section", "article"]):
+            if not container.find(["div", "p", "section", "article", "table", "h1", "h2", "h3", "h4"]):
+                txt = container.get_text(separator=" ", strip=True)
+                if len(txt) > 20 and txt not in seen_texts:
+                    if not any(txt in s or s in txt for s in seen_texts):
+                        seen_texts.add(txt)
+                        content_blocks.append(txt)
+
+        if next_data_strings:
+            content_blocks.append("\n## Application Content & Details\n")
+            seen_next = set()
+            for s in next_data_strings[:50]:
+                if s not in seen_next and s not in seen_texts:
+                    seen_next.add(s)
+                    content_blocks.append(s)
 
     if not content_blocks:
         raw_text = main_container.get_text(separator="\n", strip=True)
@@ -344,6 +419,8 @@ def extract_page_content(
         or entities["addresses"]
         or entities["pricing"]
         or entities["faqs"]
+        or entities.get("socials")
+        or entities.get("policies")
     )
 
     if has_facts:
@@ -360,6 +437,12 @@ def extract_page_content(
             facts_block.append(f"- **Working Hours:** {' | '.join(entities['opening_hours'])}")
         if entities["pricing"]:
             facts_block.append(f"- **Discovered Pricing & Plans:** {', '.join(entities['pricing'])}")
+        if entities.get("socials"):
+            soc_str = ", ".join(f"{k.capitalize()}: {v}" for k, v in entities["socials"].items())
+            facts_block.append(f"- **Official Social Profiles:** {soc_str}")
+        if entities.get("policies"):
+            pol_str = ", ".join(f"{k.capitalize()} Policy: {v}" for k, v in entities["policies"].items())
+            facts_block.append(f"- **Discovered Policies & Legal:** {pol_str}")
         if entities["faqs"]:
             facts_block.append("- **Discovered FAQs:**")
             for f in entities["faqs"][:5]:

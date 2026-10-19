@@ -68,5 +68,92 @@
       "rejected": "Maaf kijiye, hum iska seedha uttar nahi de sakte.",
       "rationale": "Selected high-scoring output (95/100) demonstrates proactive problem solving."
     }
+  },
+  {
+    "id": "exp-1792425376950-q3oc",
+    "timestamp": "2026-10-19T15:56:16.950Z",
+    "modelVersion": "AD-v1.0",
+    "query": "bihar stack me kya kya services h",
+    "response": "Hamare verified business records ke anusaar: Title: Bihar Stack (BiharStack) | Building Bihar. Scaling Businesses. Section: Bihar Stack (BiharStack) | Building Bihar. Scaling Businesses. Description: Explore Bihar Stack&#x27;s 8 digital marketing engines: Social Media, Performance Ads, Meta & Google PPC, High-Authority SEO, Local GMB, and WhatsApp Automation.। Kya aapko isse related koi aur clarification chahiye?",
+    "contextUsed": true,
+    "qualityScore": 89,
+    "critique": "Optimal conciseness and cognitive bandwidth",
+    "isDpoPairGenerated": false,
+    "domain": "AI Assistant"
+  },
+  {
+    "id": "exp-1792425569649-kyat",
+    "timestamp": "2026-10-19T15:59:29.649Z",
+    "modelVersion": "AD-v1.0",
+    "query": "hi rizqora",
+    "response": "नमस्ते! 🙏 AI Assistant में आपका स्वागत है। मैं AD हूँ, बताइए आज मैं आपकी क्या सहायता कर सकता हूँ?",
+    "contextUsed": true,
+    "qualityScore": 89,
+    "critique": "Optimal conciseness and cognitive bandwidth",
+    "isDpoPairGenerated": false,
+    "domain": "AI Assistant"
+  },
+  {
+    "id": "exp-1792425606363-4vwa",
+    "timestamp": "2026-10-19T16:00:06.363Z",
+    "modelVersion": "AD-v1.0",
+    "query": "abhi kyaa offer chal raha h /",
+    "response": "I don't have verified information about that in our business records yet. Would you like to leave your contact details so our team at AI Assistant can assist you directly?",
+    "contextUsed": false,
+    "qualityScore": 89,
+    "critique": "Optimal conciseness and cognitive bandwidth",
+    "isDpoPairGenerated": false,
+    "domain": "AI Assistant"
+  },
+  {
+    "id": "exp-1792425616987-munk",
+    "timestamp": "2026-10-19T16:00:16.987Z",
+    "modelVersion": "AD-v1.0",
+    "query": "abhi kyaa offer chal raha h ?",
+    "response": "Maaf kijiye, AI Assistant ke certified knowledge base me is vishay par specific details available nahi hain. Galat jankari na mile, iske liye main hamari team se aapse sampark karwa sakta hoon. Kripya apna phone number ya email share karein!",
+    "contextUsed": true,
+    "qualityScore": 95,
+    "critique": "Optimal conciseness and cognitive bandwidth; High actionability with direct resolution path; Strict grounded alignment flag verified",
+    "isDpoPairGenerated": true,
+    "domain": "AI Assistant",
+    "dpoPair": {
+      "chosen": "Maaf kijiye, AI Assistant ke certified knowledge base me is vishay par specific details available nahi hain. Galat jankari na mile, iske liye main hamari team se aapse sampark karwa sakta hoon. Kripya apna phone number ya email share karein!",
+      "rejected": "Maaf kijiye, hum iska seedha uttar nahi de sakte.",
+      "rationale": "Selected high-scoring output (95/100) demonstrates proactive problem solving."
+    }
+  },
+  {
+    "id": "exp-1792425655631-t42k",
+    "timestamp": "2026-10-19T16:00:55.631Z",
+    "modelVersion": "AD-v1.0",
+    "query": "nhi",
+    "response": "Maaf kijiye, AI Assistant ke certified knowledge base me is vishay par specific details available nahi hain. Galat jankari na mile, iske liye main hamari team se aapse sampark karwa sakta hoon. Kripya apna phone number ya email share karein!",
+    "contextUsed": true,
+    "qualityScore": 95,
+    "critique": "Optimal conciseness and cognitive bandwidth; High actionability with direct resolution path; Strict grounded alignment flag verified",
+    "isDpoPairGenerated": true,
+    "domain": "AI Assistant",
+    "dpoPair": {
+      "chosen": "Maaf kijiye, AI Assistant ke certified knowledge base me is vishay par specific details available nahi hain. Galat jankari na mile, iske liye main hamari team se aapse sampark karwa sakta hoon. Kripya apna phone number ya email share karein!",
+      "rejected": "Maaf kijiye, hum iska seedha uttar nahi de sakte.",
+      "rationale": "Selected high-scoring output (95/100) demonstrates proactive problem solving."
+    }
+  },
+  {
+    "id": "exp-1792428559462-m7n5",
+    "timestamp": "2026-10-19T16:49:19.462Z",
+    "modelVersion": "AD-v1.0",
+    "query": "our service",
+    "response": "Maaf kijiye, AI Assistant ke certified knowledge base me is vishay par specific details available nahi hain. Galat jankari na mile, iske liye main hamari team se aapse sampark karwa sakta hoon. Kripya apna phone number ya email share karein!",
+    "contextUsed": true,
+    "qualityScore": 95,
+    "critique": "Optimal conciseness and cognitive bandwidth; High actionability with direct resolution path; Strict grounded alignment flag verified",
+    "isDpoPairGenerated": true,
+    "domain": "AI Assistant",
+    "dpoPair": {
+      "chosen": "Maaf kijiye, AI Assistant ke certified knowledge base me is vishay par specific details available nahi hain. Galat jankari na mile, iske liye main hamari team se aapse sampark karwa sakta hoon. Kripya apna phone number ya email share karein!",
+      "rejected": "Maaf kijiye, hum iska seedha uttar nahi de sakte.",
+      "rationale": "Selected high-scoring output (95/100) demonstrates proactive problem solving."
+    }
   }
 ]
