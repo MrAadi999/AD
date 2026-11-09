@@ -14,48 +14,30 @@ import { runAgentLoop } from './engine';
 import { recordApiLog, recordApiUsage } from '../developer/usage-service';
 import { ChatbotService } from '../chatbot/service';
 
-// In-memory stores for local offline development, testing, and SSR
-export const inMemoryAgents = new Map<string, AgentRecord>();
-export const inMemoryAgentTools = new Map<string, AgentToolRecord[]>();
-export const inMemoryAgentRuns = new Map<string, AgentRunRecord[]>();
-
 export const AgentService = {
   /**
-   * List all AI agents for a workspace
+   * List all AI agents for a workspace strictly from Supabase
    */
   async getAgents(workspaceId: string): Promise<AgentRecord[]> {
     if (!workspaceId) return [];
 
-    let agents: AgentRecord[] = [];
-
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        const { data, error } = await supabase
-          .from('ai_agents')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .neq('status', 'archived')
-          .order('created_at', { ascending: false });
-
-        if (!error && data) {
-          agents = data as AgentRecord[];
-        }
-      } catch (err: any) {
-        console.warn('[AgentService] Supabase getAgents error:', err.message);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database error: Supabase is not configured.');
     }
 
-    if (agents.length === 0) {
-      agents = Array.from(inMemoryAgents.values()).filter(
-        (a) => a.workspace_id === workspaceId && a.status !== 'archived'
-      );
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from('ai_agents')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Database error fetching agents: ${error.message}`);
     }
 
-    // Populate seed agents if empty for new workspaces
-    if (agents.length === 0) {
-      agents = await this.seedDefaultAgents(workspaceId);
-    }
+    const agents = (data as AgentRecord[]) || [];
 
     // Attach tool lists & chatbot names
     const chatbots = await ChatbotService.getChatbots(workspaceId);
@@ -64,44 +46,44 @@ export const AgentService = {
     for (const a of agents) {
       a.tools = await this.getAgentTools(workspaceId, a.id);
       if (a.chatbot_id) a.chatbot_name = botMap.get(a.chatbot_id) || 'Connected Chatbot';
-      a.runs_count = (inMemoryAgentRuns.get(a.id) || []).length;
+      const { count } = await supabase
+        .from('agent_runs')
+        .select('*', { count: 'exact', head: true })
+        .eq('agent_id', a.id);
+      a.runs_count = count || 0;
     }
 
     return agents;
   },
 
   /**
-   * Get an agent by ID with workspace isolation
+   * Get an agent by ID with workspace isolation strictly from Supabase
    */
   async getAgentById(workspaceId: string, agentId: string): Promise<AgentRecord | null> {
     if (!workspaceId || !agentId) return null;
 
-    let agent: AgentRecord | null = null;
-
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        const { data, error } = await supabase
-          .from('ai_agents')
-          .select('*')
-          .eq('id', agentId)
-          .eq('workspace_id', workspaceId)
-          .single();
-
-        if (!error && data) {
-          agent = data as AgentRecord;
-        }
-      } catch (err: any) {
-        console.warn('[AgentService] Supabase getAgentById error:', err.message);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database error: Supabase is not configured.');
     }
 
-    if (!agent) {
-      const found = inMemoryAgents.get(agentId);
-      if (found && found.workspace_id === workspaceId) {
-        agent = found;
-      }
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from('ai_agents')
+      .select('*')
+      .eq('id', agentId)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Database error fetching agent: ${error.message}`);
     }
+
+    if (!data) return null;
+
+    const agent = data as AgentRecord;
+    agent.tools = await this.getAgentTools(workspaceId, agent.id);
+    return agent;
+  },
 
     if (agent) {
       agent.tools = await this.getAgentTools(workspaceId, agent.id);
@@ -132,8 +114,6 @@ export const AgentService = {
       created_at: now,
       updated_at: now,
     };
-
-    inMemoryAgents.set(id, agent);
 
     // Save tools
     const toolsToCreate = dto.tools || [
@@ -166,45 +146,46 @@ export const AgentService = {
       updated_at: now,
     }));
 
-    inMemoryAgentTools.set(id, createdTools);
     agent.tools = createdTools;
 
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        await supabase.from('ai_agents').insert({
-          id: agent.id,
-          workspace_id: agent.workspace_id,
-          chatbot_id: agent.chatbot_id,
-          name: agent.name,
-          description: agent.description,
-          purpose: agent.purpose,
-          system_instructions: agent.system_instructions,
-          model: agent.model,
-          temperature: agent.temperature,
-          max_steps: agent.max_steps,
-          status: agent.status,
-          created_at: agent.created_at,
-          updated_at: agent.updated_at,
-        });
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database error: Supabase is not configured.');
+    }
 
-        for (const tool of createdTools) {
-          await supabase.from('agent_tools').insert({
-            id: tool.id,
-            workspace_id: tool.workspace_id,
-            agent_id: tool.agent_id,
-            tool_type: tool.tool_type,
-            name: tool.name,
-            description: tool.description,
-            configuration: tool.configuration,
-            enabled: tool.enabled,
-            created_at: tool.created_at,
-            updated_at: tool.updated_at,
-          });
-        }
-      } catch (err: any) {
-        console.warn('[AgentService] Supabase insert error:', err.message);
-      }
+    const supabase = createServerClient();
+    const { error: agentError } = await supabase.from('ai_agents').insert({
+      id: agent.id,
+      workspace_id: agent.workspace_id,
+      chatbot_id: agent.chatbot_id,
+      name: agent.name,
+      description: agent.description,
+      purpose: agent.purpose,
+      system_instructions: agent.system_instructions,
+      model: agent.model,
+      temperature: agent.temperature,
+      max_steps: agent.max_steps,
+      status: agent.status,
+      created_at: agent.created_at,
+      updated_at: agent.updated_at,
+    });
+
+    if (agentError) {
+      throw new Error(`Database error creating agent: ${agentError.message}`);
+    }
+
+    for (const tool of createdTools) {
+      await supabase.from('agent_tools').insert({
+        id: tool.id,
+        workspace_id: tool.workspace_id,
+        agent_id: tool.agent_id,
+        tool_type: tool.tool_type,
+        name: tool.name,
+        description: tool.description,
+        configuration: tool.configuration,
+        enabled: tool.enabled,
+        created_at: tool.created_at,
+        updated_at: tool.updated_at,
+      });
     }
 
     return agent;
@@ -226,8 +207,6 @@ export const AgentService = {
       ...updates,
       updated_at: new Date().toISOString(),
     };
-
-    inMemoryAgents.set(agentId, updated);
 
     if (isSupabaseConfigured()) {
       try {
@@ -293,19 +272,20 @@ export const AgentService = {
     if (!agent) return false;
 
     agent.status = 'archived';
-    inMemoryAgents.set(agentId, agent);
 
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        await supabase
-          .from('ai_agents')
-          .update({ status: 'archived', updated_at: new Date().toISOString() })
-          .eq('id', agentId)
-          .eq('workspace_id', workspaceId);
-      } catch (err: any) {
-        console.error('[AgentService] Supabase delete error:', err.message);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database error: Supabase is not configured.');
+    }
+
+    const supabase = createServerClient();
+    const { error } = await supabase
+      .from('ai_agents')
+      .update({ status: 'archived', updated_at: new Date().toISOString() })
+      .eq('id', agentId)
+      .eq('workspace_id', workspaceId);
+
+    if (error) {
+      throw new Error(`Database error deleting agent: ${error.message}`);
     }
 
     return true;
@@ -315,24 +295,22 @@ export const AgentService = {
    * Get tools for an agent
    */
   async getAgentTools(workspaceId: string, agentId: string): Promise<AgentToolRecord[]> {
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        const { data, error } = await supabase
-          .from('agent_tools')
-          .select('*')
-          .eq('agent_id', agentId)
-          .eq('workspace_id', workspaceId);
-
-        if (!error && data) {
-          return data as AgentToolRecord[];
-        }
-      } catch (err: any) {
-        console.warn('[AgentService] Supabase getAgentTools error:', err.message);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database error: Supabase is not configured.');
     }
 
-    return inMemoryAgentTools.get(agentId) || [];
+    const supabase = createServerClient();
+    const { data, error } = await supabase
+      .from('agent_tools')
+      .select('*')
+      .eq('agent_id', agentId)
+      .eq('workspace_id', workspaceId);
+
+    if (error) {
+      throw new Error(`Database error fetching agent tools: ${error.message}`);
+    }
+
+    return (data as AgentToolRecord[]) || [];
   },
 
   /**
@@ -343,28 +321,27 @@ export const AgentService = {
     agentId: string,
     tools: AgentToolRecord[]
   ): Promise<AgentToolRecord[]> {
-    inMemoryAgentTools.set(agentId, tools);
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database error: Supabase is not configured.');
+    }
 
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        for (const t of tools) {
-          await supabase
-            .from('agent_tools')
-            .upsert({
-              id: t.id,
-              workspace_id: workspaceId,
-              agent_id: agentId,
-              tool_type: t.tool_type,
-              name: t.name,
-              description: t.description,
-              configuration: t.configuration,
-              enabled: t.enabled,
-              updated_at: new Date().toISOString(),
-            });
-        }
-      } catch (err: any) {
-        console.error('[AgentService] Supabase updateAgentTools error:', err.message);
+    const supabase = createServerClient();
+    for (const t of tools) {
+      const { error } = await supabase
+        .from('agent_tools')
+        .upsert({
+          id: t.id,
+          workspace_id: workspaceId,
+          agent_id: agentId,
+          tool_type: t.tool_type,
+          name: t.name,
+          description: t.description,
+          configuration: t.configuration,
+          enabled: t.enabled,
+          updated_at: new Date().toISOString(),
+        });
+      if (error) {
+        throw new Error(`Database error updating agent tools: ${error.message}`);
       }
     }
 
@@ -427,10 +404,6 @@ export const AgentService = {
       agent_name: agent.name,
     };
 
-    const existingRuns = inMemoryAgentRuns.get(agentId) || [];
-    existingRuns.unshift(runRecord);
-    inMemoryAgentRuns.set(agentId, existingRuns);
-
     // Record Telemetry into Step 8 telemetry tables
     await Promise.all([
       recordApiUsage({
@@ -460,6 +433,26 @@ export const AgentService = {
       try {
         const supabase = createServerClient();
         await supabase.from('agent_runs').insert({
+          id: runRecord.id,
+          workspace_id: runRecord.workspace_id,
+          agent_id: runRecord.agent_id,
+          conversation_id: runRecord.conversation_id,
+          status: runRecord.status,
+          input: runRecord.input,
+          output: runRecord.output,
+          steps: runRecord.steps,
+          tool_calls_count: runRecord.tool_calls_count,
+          input_tokens: runRecord.input_tokens,
+          output_tokens: runRecord.output_tokens,
+          total_tokens: runRecord.total_tokens,
+          latency_ms: runRecord.latency_ms,
+          created_at: runRecord.created_at,
+          completed_at: runRecord.completed_at,
+        });
+      } catch (err: any) {
+        console.error('[AgentService] Failed to insert agent run into Supabase:', err.message);
+      }
+    }
           id: runRecord.id,
           workspace_id: runRecord.workspace_id,
           agent_id: runRecord.agent_id,
@@ -507,43 +500,28 @@ export const AgentService = {
   ): Promise<AgentRunRecord[]> {
     let runs: AgentRunRecord[] = [];
 
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        let query = supabase
-          .from('agent_runs')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .order('created_at', { ascending: false })
-          .limit(limit);
-
-        if (agentId) {
-          query = query.eq('agent_id', agentId);
-        }
-
-        const { data, error } = await query;
-        if (!error && data) {
-          runs = data as AgentRunRecord[];
-        }
-      } catch (err: any) {
-        console.warn('[AgentService] Supabase getAgentRuns error:', err.message);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database error: Supabase is not configured.');
     }
 
-    if (runs.length === 0) {
-      if (agentId) {
-        runs = (inMemoryAgentRuns.get(agentId) || []).slice(0, limit);
-      } else {
-        const all: AgentRunRecord[] = [];
-        inMemoryAgentRuns.forEach((rList) => all.push(...rList));
-        runs = all
-          .filter((r) => r.workspace_id === workspaceId)
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, limit);
-      }
+    const supabase = createServerClient();
+    let query = supabase
+      .from('agent_runs')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (agentId) {
+      query = query.eq('agent_id', agentId);
     }
 
-    return runs;
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`Database error fetching agent runs: ${error.message}`);
+    }
+
+    return (data as AgentRunRecord[]) || [];
   },
 
   /**

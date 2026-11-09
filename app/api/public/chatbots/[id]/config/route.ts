@@ -23,9 +23,10 @@ export async function GET(
   try {
     const fullBot = await getChatbotByPublicId(publicId);
 
-    if (!fullBot) {
+    // Explicit check on bot_id and workspace_id
+    if (!fullBot || !fullBot.id || !fullBot.workspace_id) {
       return NextResponse.json(
-        { error: 'bot_not_found', message: 'Chatbot not found.' },
+        { error: 'bot_not_found', message: 'Chatbot not found or missing valid workspace.' },
         {
           status: 404,
           headers: { 'Access-Control-Allow-Origin': '*' },
@@ -33,12 +34,12 @@ export async function GET(
       );
     }
 
-    // 1. Domain security check
+    // 1. Domain security check: blocks if allowed_domains is empty
     if (!isOriginAllowed(origin, fullBot.allowed_domains)) {
       return NextResponse.json(
         {
           error: 'unauthorized_domain',
-          message: 'Origin domain is not permitted to use this chatbot widget.',
+          message: 'Origin domain is not permitted to use this chatbot widget. Allowed domains must be explicitly configured.',
         },
         {
           status: 403,
@@ -71,7 +72,7 @@ export async function GET(
   } catch (err: any) {
     console.error('[PublicConfigAPI] Error:', err);
     return NextResponse.json(
-      { error: 'server_error', message: 'Unable to retrieve chatbot configuration.' },
+      { error: 'server_error', message: err.message || 'Unable to retrieve chatbot configuration.' },
       {
         status: 500,
         headers: { 'Access-Control-Allow-Origin': '*' },

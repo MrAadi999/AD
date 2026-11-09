@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  inMemoryLearnedMemories,
-  inMemoryKnowledgeGaps,
-  inMemoryFeedback,
-  saveLearnedMemory,
-} from '@/lib/knowledge/auto-learning';
+import { saveLearnedMemory } from '@/lib/knowledge/auto-learning';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 
@@ -17,38 +12,39 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'chatbotId query param is required' }, { status: 400 });
   }
 
-  let memories = inMemoryLearnedMemories.get(chatbotId) || [];
-  let gaps = inMemoryKnowledgeGaps.get(chatbotId) || [];
-  let feedback = inMemoryFeedback.get(chatbotId) || [];
-
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const [memRes, gapRes, feedRes] = await Promise.all([
-        supabase
-          .from('learned_memories')
-          .select('*')
-          .eq('chatbot_id', chatbotId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('knowledge_gaps')
-          .select('*')
-          .eq('chatbot_id', chatbotId)
-          .order('frequency', { ascending: false }),
-        supabase
-          .from('interaction_feedback')
-          .select('*')
-          .eq('chatbot_id', chatbotId)
-          .order('created_at', { ascending: false }),
-      ]);
-
-      if (memRes.data && memRes.data.length > 0) memories = memRes.data as any;
-      if (gapRes.data && gapRes.data.length > 0) gaps = gapRes.data as any;
-      if (feedRes.data && feedRes.data.length > 0) feedback = feedRes.data as any;
-    } catch {
-      // fallback to in-memory
-    }
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: 'Database error: Supabase is not configured.' },
+      { status: 500 }
+    );
   }
+
+  const supabase = createServerClient();
+  const [memRes, gapRes, feedRes] = await Promise.all([
+    supabase
+      .from('learned_memories')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('knowledge_gaps')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+      .order('frequency', { ascending: false }),
+    supabase
+      .from('interaction_feedback')
+      .select('*')
+      .eq('chatbot_id', chatbotId)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  if (memRes.error) {
+    return NextResponse.json({ error: `Database error: ${memRes.error.message}` }, { status: 500 });
+  }
+
+  const memories = memRes.data || [];
+  const gaps = gapRes.data || [];
+  const feedback = feedRes.data || [];
 
   const thumbsUpCount = feedback.filter((f) => f.rating === 1).length;
   const thumbsDownCount = feedback.filter((f) => f.rating === -1).length;

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:eval": "node scripts/eval-bots.js",
+    "prebuild": "npm run test:eval"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -17,6 +19,7 @@
     "autoprefixer": "^10.4.20",
     "lucide-react": "^0.446.0",
     "next": "^13.5.6",
+    "playwright": "^1.65.0",
     "postcss": "^8.4.47",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

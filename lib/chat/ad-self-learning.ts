@@ -44,90 +44,13 @@ export interface SelfLearningStats {
   recentLearnings: string[];
 }
 
-const DATA_DIR = path.join(process.cwd(), '.data');
-const BUFFER_FILE = path.join(DATA_DIR, 'ad_experience_buffer.json');
-
-// In-memory buffer for high-frequency access
-let episodes: ExperienceEpisode[] = [];
-let isInitialized = false;
-
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    try {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    } catch {
-      // ignore in sandboxed environments
-    }
-  }
-}
-
 function loadEpisodes() {
   if (isInitialized) return;
   isInitialized = true;
-  ensureDataDir();
-  try {
-    if (fs.existsSync(BUFFER_FILE)) {
-      const data = fs.readFileSync(BUFFER_FILE, 'utf-8');
-      episodes = JSON.parse(data);
-    } else {
-      // Seed initial high-quality synthetic gold memory episodes
-      episodes = [
-        {
-          id: 'seed-001',
-          timestamp: new Date().toISOString(),
-          modelVersion: 'AD-v1.0',
-          query: 'Humko Diwali discount aur pricing plan batao',
-          response: 'Namaste! Diwali festive offer ke tehat hamare sabhi business AI plans par special 20% discount active hai. Starter Plan ₹999/month aur Growth Plan ₹2,499/month me available hai. Kya aap apna business type share karenge taaki hum best plan recommend kar sakein?',
-          contextUsed: true,
-          qualityScore: 98,
-          critique: 'Perfect cultural warmth, accurate pricing disclosure, and constructive CTA lead capture.',
-          isDpoPairGenerated: true,
-          dpoPair: {
-            chosen: 'Namaste! Diwali festive offer ke tehat hamare sabhi business AI plans par special 20% discount active hai...',
-            rejected: 'Diwali plan ₹999 aur ₹2499 ka hai.',
-            rationale: 'Chosen has superior polite greeting and follow-up consultation prompt.'
-          },
-          domain: 'Festive Sales & Pricing'
-        },
-        {
-          id: 'seed-002',
-          timestamp: new Date().toISOString(),
-          modelVersion: 'AD-v1.0',
-          query: 'Mera order deliver nahi hua, complaint karni hai',
-          response: 'Humein behad khed hai ki aapko pareshani hui. Kripya apna Order ID ya registered phone number share karein, hum turant hamari priority support team ke paas aapki complaint escalate kar rahe hain. 2 ghante ke andar resolution diya jayega.',
-          contextUsed: true,
-          qualityScore: 99,
-          critique: 'Empathetic de-escalation, swift SLA commitment, zero hallucination.',
-          isDpoPairGenerated: true,
-          domain: 'Customer Grievance & Escalation'
-        },
-        {
-          id: 'seed-003',
-          timestamp: new Date().toISOString(),
-          modelVersion: 'AD-v1.0',
-          query: 'Bihar me AI model train karne ka kya faayda hai?',
-          response: 'BiharStack AI ka AD Model Bharat ke regional enterprises, Tier-2/3 MSMEs, aur Indic/Bhojpuri vernacular users ke liye low-latency aur cost-effective AI provide karta hai. Isse local businesses bina heavy foreign LLM cost ke apni sales aur support automate kar sakte hain.',
-          contextUsed: true,
-          qualityScore: 97,
-          critique: 'Grounded positioning, high regional relevance.',
-          isDpoPairGenerated: true,
-          domain: 'Regional AI & Enterprise Value'
-        }
-      ];
-      saveEpisodes();
-    }
-  } catch (err) {
-    console.warn('[AD Self-Learning] Failed to load experience buffer:', err);
-  }
 }
 
 function saveEpisodes() {
-  ensureDataDir();
-  try {
-    fs.writeFileSync(BUFFER_FILE, JSON.stringify(episodes.slice(-1000), null, 2), 'utf-8');
-  } catch {
-    // ignore
-  }
+  // In-memory telemetry; no local .data files written
 }
 
 /**

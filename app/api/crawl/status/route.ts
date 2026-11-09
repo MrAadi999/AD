@@ -1,11 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
-import {
-  getLatestJobForChatbot,
-  readJobStateFromFile,
-  inMemoryCrawlJobs,
-} from '@/lib/crawler/runner';
 import { CrawlJob } from '@/lib/crawler/types';
 
 export async function GET(request: NextRequest) {
@@ -21,100 +16,67 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let workspaceId = 'ws-demo-01';
-
-    if (isSupabaseConfigured()) {
-      const supabase = createServerClient();
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-
-      const { data: member } = await supabase
-        .from('workspace_members')
-        .select('workspace_id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .single();
-
-      if (member) {
-        workspaceId = member.workspace_id;
-      }
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: 'Database error: Supabase is not configured.' },
+        { status: 500 }
+      );
     }
 
-    let job: CrawlJob | null = null;
+    const supabase = createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: member, error: memberError } = await supabase
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (memberError || !member) {
+      return NextResponse.json({ error: 'Forbidden: No active workspace' }, { status: 403 });
+    }
+
+    const workspaceId = member.workspace_id;
+    let query = supabase
+      .from('crawl_jobs')
+      .select('*')
+      .eq('workspace_id', workspaceId);
 
     if (jobId) {
-      job = inMemoryCrawlJobs.get(jobId) || null;
-      const fileData = readJobStateFromFile(jobId);
-      if (fileData) {
-        job = {
-          id: jobId,
-          workspace_id: fileData.workspace_id || workspaceId,
-          chatbot_id: fileData.chatbot_id || (chatbotId || ''),
-          start_url: fileData.start_url || '',
-          status: fileData.status || 'crawling',
-          pages_discovered: fileData.pages_discovered || 0,
-          pages_processed: fileData.pages_processed || 0,
-          pages_failed: fileData.pages_failed || 0,
-          current_page: fileData.current_page || null,
-          current_action: fileData.current_action || (inMemoryCrawlJobs.get(jobId)?.current_action || null),
-          discovered_buttons: fileData.discovered_buttons || (inMemoryCrawlJobs.get(jobId)?.discovered_buttons || []),
-          error_message: fileData.error_message || null,
-          started_at: fileData.started_at || null,
-          completed_at: fileData.completed_at || null,
-          created_at: fileData.started_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-      }
+      query = query.eq('id', jobId);
+    } else if (chatbotId) {
+      query = query.eq('chatbot_id', chatbotId).order('created_at', { ascending: false }).limit(1);
     }
 
-    if (!job && chatbotId) {
-      job = await getLatestJobForChatbot(workspaceId, chatbotId);
-    }
+    const { data, error } = await query.maybeSingle();
 
-    if (!job) {
+    if (error) {
       return NextResponse.json(
-        { error: 'No active or recent crawl job found.' },
+        { error: `Database error: ${error.message}` },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'No crawl job found.' },
         { status: 404 }
       );
     }
 
-    // Normalize completed status
-    const isDone = Boolean(job.completed_at) || (job.pages_discovered > 0 && job.pages_processed >= job.pages_discovered);
-    if (isDone && job.status !== 'failed') {
-      job.status = 'completed';
-    }
-
-    // Compute progress percentage
-    let percent = 0;
-    if (job.status === 'completed' || isDone) {
-      percent = 100;
-    } else if (job.status === 'failed') {
-      percent = 100;
-    } else if (job.pages_discovered > 0) {
-      percent = Math.min(
-        95,
-        Math.max(
-          10,
-          Math.round((job.pages_processed / Math.max(job.pages_discovered, 1)) * 100)
-        )
-      );
-    } else {
-      percent = 10;
-    }
-
-    return NextResponse.json({
-      job,
-      percent_complete: percent,
-    });
+    return NextResponse.json({ data: data as CrawlJob });
   } catch (err: any) {
+    console.error('[CrawlStatusAPI] Error:', err);
     return NextResponse.json(
-      { error: err.message || 'Failed to fetch crawl status.' },
+      { error: err.message || 'Failed to fetch crawl job status.' },
       { status: 500 }
     );
   }

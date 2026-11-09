@@ -23,15 +23,19 @@ export function normalizeDomain(rawUrlOrDomain: string): string {
 }
 
 /**
- * Validates if a request Origin or Referer is permitted by the chatbot's allowed_domains configuration
+ * Validates if a request Origin or Referer is permitted by the chatbot's allowed_domains configuration.
+ *
+ * Strict Security Policy:
+ * If allowed_domains is empty, undefined, or contains no valid domains,
+ * the widget is BLOCKED. (No wildcards or open-to-all access).
  */
 export function isOriginAllowed(
   originOrReferer: string | null | undefined,
   allowedDomains?: string[]
 ): boolean {
-  // If no allowed domains configured, access is open to all domains
+  // If no allowed domains configured, BLOCK the widget
   if (!allowedDomains || !Array.isArray(allowedDomains) || allowedDomains.length === 0) {
-    return true;
+    return false;
   }
 
   // Filter non-empty configured domains
@@ -39,12 +43,13 @@ export function isOriginAllowed(
     .map(normalizeDomain)
     .filter(Boolean);
 
+  // If all entries were empty strings, BLOCK the widget
   if (normalizedAllowed.length === 0) {
-    return true;
+    return false;
   }
 
+  // If no Origin or Referer header was provided, BLOCK
   if (!originOrReferer) {
-    // If domain restrictions are active, requests without Origin/Referer (e.g. direct curl) are blocked
     return false;
   }
 

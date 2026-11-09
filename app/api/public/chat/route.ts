@@ -72,15 +72,16 @@ export async function POST(request: NextRequest) {
 
     // 2. Anonymous Session Resolution
     if (!sessionId || typeof sessionId !== 'string') {
-      sessionId = `bs_session_${crypto.randomBytes(8).toString('hex')}`;
+      sessionId = `session_${crypto.randomBytes(8).toString('hex')}`;
     }
 
-    // 3. Resolve Chatbot securely
+    // 3. Resolve Chatbot securely via server-side SUPABASE_SERVICE_ROLE_KEY client
     const bot = await getChatbotByPublicId(botId);
 
-    if (!bot) {
+    // Explicitly check both bot_id and workspace_id in code
+    if (!bot || !bot.id || !bot.workspace_id) {
       return NextResponse.json(
-        { error: 'bot_not_found', message: 'Chatbot not found.' },
+        { error: 'bot_not_found', message: 'Chatbot not found or invalid workspace binding.' },
         {
           status: 404,
           headers: { 'Access-Control-Allow-Origin': '*' },
@@ -109,12 +110,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Domain validation
+    // 5. Domain validation: if allowed_domains is empty, widget is blocked
     if (!isOriginAllowed(origin, bot.allowed_domains)) {
       return NextResponse.json(
         {
           error: 'unauthorized_domain',
-          message: 'Origin domain is not permitted to use this chatbot widget.',
+          message: 'Origin domain is not permitted to use this chatbot widget. Allowed domains must be explicitly configured.',
         },
         {
           status: 403,
@@ -124,8 +125,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Rate Limiting Check
-    const rateCheck = checkWidgetRateLimit({
-      botId: bot.id || botId,
+    const rateCheck = await checkWidgetRateLimit({
+      botId: bot.id,
       sessionId,
       clientIp,
     });
@@ -146,13 +147,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Execute existing Step 6 RAG chat engine
-    const workspaceId = bot.workspace_id || 'ws-demo-01';
-    const internalBotId = bot.id || botId;
-
+    // 7. Execute RAG chat engine with strictly verified IDs
     const chatResult = await processChatMessage({
-      workspaceId,
-      chatbotId: internalBotId,
+      workspaceId: bot.workspace_id,
+      chatbotId: bot.id,
       userMessage: message,
       sessionId,
     });
@@ -178,7 +176,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'server_error',
-        message: 'Unable to process your request at this time. Please try again.',
+        message: err.message || 'Unable to process your request at this time. Please try again.',
       },
       {
         status: 500,

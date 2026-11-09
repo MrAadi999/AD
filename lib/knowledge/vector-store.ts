@@ -1,8 +1,6 @@
 import { createClient as createServerClient } from '../supabase/server';
 import { isSupabaseConfigured } from '../supabase/client';
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
+import { EMBEDDING_MODEL_NAME } from '../embeddings/embedding-service';
 
 export interface KnowledgeChunkRecord {
   id: string;
@@ -21,6 +19,7 @@ export interface KnowledgeChunkRecord {
     source_type?: string;
     chunk_index?: number;
     total_chunks?: number;
+    embedding_model?: string;
     [key: string]: any;
   };
   created_at: string;
@@ -37,63 +36,10 @@ export interface VectorSearchResult {
   similarity: number;
 }
 
-const CACHE_DIR = path.join(process.cwd(), '.next', 'knowledge_cache');
-
-function ensureCacheDir() {
-  if (!fs.existsSync(CACHE_DIR)) {
-    try {
-      fs.mkdirSync(CACHE_DIR, { recursive: true });
-    } catch {}
-  }
-}
-
-function getChunksCacheFile(chatbotId: string): string {
-  ensureCacheDir();
-  return path.join(CACHE_DIR, `chunks_${chatbotId}.json`);
-}
-
-export function loadChunksFromDisk(chatbotId: string): KnowledgeChunkRecord[] {
-  try {
-    const f = getChunksCacheFile(chatbotId);
-    if (fs.existsSync(f)) {
-      const raw = fs.readFileSync(f, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch {}
-  return [];
-}
-
-export function saveChunksToDisk(chatbotId: string, chunks: KnowledgeChunkRecord[]): void {
-  try {
-    const f = getChunksCacheFile(chatbotId);
-    fs.writeFileSync(f, JSON.stringify(chunks, null, 2));
-  } catch {}
-}
-
-// In-memory store for chunks (used for testing, local fallback, or rapid UI rendering)
-export const inMemoryKnowledgeChunks = new Map<string, KnowledgeChunkRecord[]>();
-
 /**
- * Calculate cosine similarity between two unit vectors
- */
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (!a || !b || a.length === 0 || b.length === 0) return 0;
-  const len = Math.min(a.length, b.length);
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-/**
- * Save chunks to Supabase knowledge_chunks table (and in-memory fallback).
- * If knowledge_source_id is present, atomically replaces prior chunks for that source.
+ * Save chunks to Supabase knowledge_chunks table using pgvector.
+ * Stores the embedding model name with each chunk.
+ * If the database fails, throws a clear Error.
  */
 export async function saveKnowledgeChunks(
   workspaceId: string,
@@ -102,69 +48,63 @@ export async function saveKnowledgeChunks(
 ): Promise<void> {
   if (!chunks.length) return;
 
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured. Cannot save knowledge chunks.');
+  }
+
+  const supabase = createServerClient();
+
   // Group chunks by knowledge_source_id to replace atomically per source
   const sourceIds = Array.from(
     new Set(chunks.map((c) => c.knowledge_source_id).filter(Boolean) as string[])
   );
 
-  // Update in-memory store
-  const existing = inMemoryKnowledgeChunks.get(chatbotId) || [];
-  let updatedInMemory = existing;
-
+  // Delete prior chunks for these sources
   for (const sId of sourceIds) {
-    updatedInMemory = updatedInMemory.filter((c) => c.knowledge_source_id !== sId);
+    const { error: delError } = await supabase
+      .from('knowledge_chunks')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .eq('chatbot_id', chatbotId)
+      .eq('knowledge_source_id', sId);
+
+    if (delError) {
+      throw new Error(`Database error deleting old chunks for source "${sId}": ${delError.message}`);
+    }
   }
-  updatedInMemory.push(...chunks);
-  inMemoryKnowledgeChunks.set(chatbotId, updatedInMemory);
-  saveChunksToDisk(chatbotId, updatedInMemory);
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
+  // Format records for insertion with stored embedding_model
+  const records = chunks.map((c) => ({
+    id: c.id,
+    workspace_id: workspaceId,
+    chatbot_id: chatbotId,
+    knowledge_source_id: c.knowledge_source_id || null,
+    content: c.content,
+    chunk_index: c.chunk_index,
+    token_count: c.token_count,
+    content_hash: c.content_hash,
+    embedding: c.embedding || null,
+    metadata: {
+      ...(c.metadata || {}),
+      embedding_model: EMBEDDING_MODEL_NAME,
+    },
+    created_at: c.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
 
-      // Delete prior chunks for these sources
-      for (const sId of sourceIds) {
-        await supabase
-          .from('knowledge_chunks')
-          .delete()
-          .eq('workspace_id', workspaceId)
-          .eq('chatbot_id', chatbotId)
-          .eq('knowledge_source_id', sId);
-      }
-
-      // Format records for insertion
-      const records = chunks.map((c) => ({
-        id: c.id,
-        workspace_id: workspaceId,
-        chatbot_id: chatbotId,
-        knowledge_source_id: c.knowledge_source_id || null,
-        content: c.content,
-        chunk_index: c.chunk_index,
-        token_count: c.token_count,
-        content_hash: c.content_hash,
-        embedding: c.embedding || null,
-        metadata: c.metadata || {},
-        created_at: c.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
-
-      // Insert in batches of 50 to avoid request size limits
-      const BATCH_SIZE = 50;
-      for (let i = 0; i < records.length; i += BATCH_SIZE) {
-        const batch = records.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from('knowledge_chunks').insert(batch);
-        if (error) {
-          console.warn('[VectorStore] Supabase chunk insert warning:', error.message);
-        }
-      }
-    } catch (err: any) {
-      console.warn('[VectorStore] Failed to persist chunks to Supabase, in-memory updated:', err.message);
+  // Insert in batches of 50
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < records.length; i += BATCH_SIZE) {
+    const batch = records.slice(i, i + BATCH_SIZE);
+    const { error: insertError } = await supabase.from('knowledge_chunks').insert(batch);
+    if (insertError) {
+      throw new Error(`Database error saving knowledge chunks to Supabase: ${insertError.message}`);
     }
   }
 }
 
 /**
- * Retrieve all chunks for a chatbot
+ * Retrieve all chunks for a chatbot strictly from Supabase Postgres.
  */
 export async function getChunksForChatbot(
   workspaceId: string,
@@ -174,172 +114,139 @@ export async function getChunksForChatbot(
   const limit = options?.limit || 100;
   const offset = options?.offset || 0;
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase
-        .from('knowledge_chunks')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .eq('chatbot_id', chatbotId)
-        .order('chunk_index', { ascending: true })
-        .range(offset, offset + limit - 1);
-
-      if (!error && data && data.length > 0) {
-        return data as KnowledgeChunkRecord[];
-      }
-    } catch {
-      // fallback
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
   }
 
-  let inMem = inMemoryKnowledgeChunks.get(chatbotId);
-  if (!inMem || inMem.length === 0) {
-    inMem = loadChunksFromDisk(chatbotId);
-    inMemoryKnowledgeChunks.set(chatbotId, inMem);
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from('knowledge_chunks')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('chatbot_id', chatbotId)
+    .order('chunk_index', { ascending: true })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new Error(`Database error fetching knowledge chunks for chatbot "${chatbotId}": ${error.message}`);
   }
-  return (inMem || [])
-    .filter((c) => c.workspace_id === workspaceId)
-    .slice(offset, offset + limit);
+
+  return (data as KnowledgeChunkRecord[]) || [];
 }
 
 /**
- * Get aggregate chunk and token statistics for a chatbot
+ * Get aggregate chunk and token statistics for a chatbot strictly from Supabase Postgres.
  */
 export async function getChunkStatsForChatbot(
   workspaceId: string,
   chatbotId: string
 ): Promise<{ totalChunks: number; totalTokens: number }> {
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, count, error } = await supabase
-        .from('knowledge_chunks')
-        .select('token_count', { count: 'exact' })
-        .eq('workspace_id', workspaceId)
-        .eq('chatbot_id', chatbotId);
-
-      if (!error) {
-        const totalTokens = (data || []).reduce((acc, row) => acc + (row.token_count || 0), 0);
-        return {
-          totalChunks: count || (data || []).length,
-          totalTokens,
-        };
-      }
-    } catch {
-      // fallback
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
   }
 
-  let inMem = inMemoryKnowledgeChunks.get(chatbotId);
-  if (!inMem || inMem.length === 0) {
-    inMem = loadChunksFromDisk(chatbotId);
-    inMemoryKnowledgeChunks.set(chatbotId, inMem);
+  const supabase = createServerClient();
+  const { data, count, error } = await supabase
+    .from('knowledge_chunks')
+    .select('token_count', { count: 'exact' })
+    .eq('workspace_id', workspaceId)
+    .eq('chatbot_id', chatbotId);
+
+  if (error) {
+    throw new Error(`Database error fetching chunk stats: ${error.message}`);
   }
-  const chatbotChunks = (inMem || []).filter((c) => c.workspace_id === workspaceId);
+
+  const totalTokens = (data || []).reduce((acc, row) => acc + (row.token_count || 0), 0);
   return {
-    totalChunks: chatbotChunks.length,
-    totalTokens: chatbotChunks.reduce((acc, c) => acc + (c.token_count || 0), 0),
+    totalChunks: count || (data || []).length,
+    totalTokens,
   };
 }
 
 /**
- * Get chunk count mapped per knowledge source ID
+ * Get chunk count mapped per knowledge source ID strictly from Supabase Postgres.
  */
 export async function getChunkCountsBySourceForChatbot(
   workspaceId: string,
   chatbotId: string
 ): Promise<Record<string, number>> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
+  }
+
   const counts: Record<string, number> = {};
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from('knowledge_chunks')
+    .select('knowledge_source_id')
+    .eq('workspace_id', workspaceId)
+    .eq('chatbot_id', chatbotId);
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase
-        .from('knowledge_chunks')
-        .select('knowledge_source_id')
-        .eq('workspace_id', workspaceId)
-        .eq('chatbot_id', chatbotId);
-
-      if (!error && data && data.length > 0) {
-        for (const row of data) {
-          if (row.knowledge_source_id) {
-            counts[row.knowledge_source_id] = (counts[row.knowledge_source_id] || 0) + 1;
-          }
-        }
-        return counts;
-      }
-    } catch {}
+  if (error) {
+    throw new Error(`Database error fetching source chunk counts: ${error.message}`);
   }
 
-  let inMem = inMemoryKnowledgeChunks.get(chatbotId);
-  if (!inMem || inMem.length === 0) {
-    inMem = loadChunksFromDisk(chatbotId);
-    inMemoryKnowledgeChunks.set(chatbotId, inMem);
-  }
-  for (const c of (inMem || [])) {
-    if (c.workspace_id === workspaceId && c.knowledge_source_id) {
-      counts[c.knowledge_source_id] = (counts[c.knowledge_source_id] || 0) + 1;
+  for (const row of data || []) {
+    if (row.knowledge_source_id) {
+      counts[row.knowledge_source_id] = (counts[row.knowledge_source_id] || 0) + 1;
     }
   }
+
   return counts;
 }
 
 /**
- * Delete chunks belonging to a specific knowledge source
+ * Delete chunks belonging to a specific knowledge source from Supabase.
  */
 export async function deleteChunksForSource(
   workspaceId: string,
   chatbotId: string,
   sourceId: string
 ): Promise<void> {
-  const existing = inMemoryKnowledgeChunks.get(chatbotId) || [];
-  inMemoryKnowledgeChunks.set(
-    chatbotId,
-    existing.filter((c) => c.knowledge_source_id !== sourceId)
-  );
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
+  }
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      await supabase
-        .from('knowledge_chunks')
-        .delete()
-        .eq('workspace_id', workspaceId)
-        .eq('chatbot_id', chatbotId)
-        .eq('knowledge_source_id', sourceId);
-    } catch (err: any) {
-      console.warn('[VectorStore] Error deleting source chunks:', err.message);
-    }
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from('knowledge_chunks')
+    .delete()
+    .eq('workspace_id', workspaceId)
+    .eq('chatbot_id', chatbotId)
+    .eq('knowledge_source_id', sourceId);
+
+  if (error) {
+    throw new Error(`Database error deleting chunks for source "${sourceId}": ${error.message}`);
   }
 }
 
 /**
- * Delete all chunks belonging to a chatbot
+ * Delete all chunks belonging to a chatbot from Supabase.
  */
 export async function deleteChunksForChatbot(
   workspaceId: string,
   chatbotId: string
 ): Promise<void> {
-  inMemoryKnowledgeChunks.delete(chatbotId);
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
+  }
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      await supabase
-        .from('knowledge_chunks')
-        .delete()
-        .eq('workspace_id', workspaceId)
-        .eq('chatbot_id', chatbotId);
-    } catch (err: any) {
-      console.warn('[VectorStore] Error deleting chatbot chunks:', err.message);
-    }
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from('knowledge_chunks')
+    .delete()
+    .eq('workspace_id', workspaceId)
+    .eq('chatbot_id', chatbotId);
+
+  if (error) {
+    throw new Error(`Database error deleting chunks for chatbot "${chatbotId}": ${error.message}`);
   }
 }
 
 /**
- * Semantic vector similarity search
+ * Semantic vector similarity search using Supabase pgvector RPC.
  * Enforces strict chatbot_id and workspace tenant isolation.
+ * Throws a clear Error if the database RPC fails.
  */
 export async function searchSimilarChunks(params: {
   workspaceId: string;
@@ -356,68 +263,36 @@ export async function searchSimilarChunks(params: {
     similarityThreshold = 0.35,
   } = params;
 
-  // 1. Try Supabase pgvector RPC
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase.rpc('match_knowledge_chunks', {
-        query_embedding: queryEmbedding,
-        match_chatbot_id: chatbotId,
-        match_count: topK,
-        similarity_threshold: similarityThreshold,
-      });
-
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return data.map((r: any) => ({
-          id: r.id,
-          knowledge_source_id: r.knowledge_source_id,
-          content: r.content,
-          chunk_index: r.chunk_index,
-          token_count: r.token_count,
-          metadata: r.metadata || {},
-          similarity: Number(r.similarity.toFixed(4)),
-        }));
-      }
-    } catch (err: any) {
-      console.warn('[VectorStore] RPC similarity match error, using local fallback:', err.message);
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured. pgvector search unavailable.');
   }
 
-  // 2. Fallback: local cosine similarity over in-memory / disk cached chunks
-  let chunks = inMemoryKnowledgeChunks.get(chatbotId);
-  if (!chunks || chunks.length === 0) {
-    chunks = loadChunksFromDisk(chatbotId);
-    if (chunks && chunks.length > 0) {
-      inMemoryKnowledgeChunks.set(chatbotId, chunks);
-    }
-  }
-  chunks = chunks || [];
-  const matches: VectorSearchResult[] = [];
+  const supabase = createServerClient();
+  const { data, error } = await supabase.rpc('match_knowledge_chunks', {
+    query_embedding: queryEmbedding,
+    match_chatbot_id: chatbotId,
+    match_count: topK,
+    similarity_threshold: similarityThreshold,
+  });
 
-  for (const chunk of chunks) {
-    // Strictly isolate workspace and chatbot
-    if (chunk.workspace_id !== workspaceId || chunk.chatbot_id !== chatbotId) {
-      continue;
-    }
-    if (!chunk.embedding || chunk.embedding.length === 0) {
-      continue;
-    }
-
-    const similarity = cosineSimilarity(queryEmbedding, chunk.embedding);
-    if (similarity >= similarityThreshold) {
-      matches.push({
-        id: chunk.id,
-        knowledge_source_id: chunk.knowledge_source_id,
-        content: chunk.content,
-        chunk_index: chunk.chunk_index,
-        token_count: chunk.token_count,
-        metadata: chunk.metadata || {},
-        similarity: Number(similarity.toFixed(4)),
-      });
-    }
+  if (error) {
+    throw new Error(`Database error: pgvector RPC match_knowledge_chunks failed: ${error.message}`);
   }
 
-  // Sort descending by similarity score and take topK
-  matches.sort((a, b) => b.similarity - a.similarity);
-  return matches.slice(0, topK);
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.map((r: any) => ({
+    id: r.id,
+    knowledge_source_id: r.knowledge_source_id,
+    content: r.content,
+    chunk_index: r.chunk_index,
+    token_count: r.token_count,
+    metadata: {
+      ...(r.metadata || {}),
+      embedding_model: r.metadata?.embedding_model || EMBEDDING_MODEL_NAME,
+    },
+    similarity: Number(r.similarity.toFixed(4)),
+  }));
 }

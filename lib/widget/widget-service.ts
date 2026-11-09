@@ -1,8 +1,6 @@
 import * as crypto from 'crypto';
-import { createClient as createServerClient } from '../supabase/server';
-import { isSupabaseConfigured } from '../supabase/client';
+import { createAdminClient } from '../supabase/admin';
 import { ChatbotConfig } from '../chatbot/types';
-import { inMemoryChatbots } from '../chatbot/service';
 
 export interface PublicWidgetConfig {
   bot_id: string;
@@ -17,69 +15,51 @@ export interface PublicWidgetConfig {
 }
 
 /**
- * Generate a safe, human-readable public bot identifier (e.g., bs_bot_a1b2c3d4e5f6)
+ * Generate a safe public bot identifier (e.g., bot_a1b2c3d4e5f6)
  */
 export function generatePublicBotId(): string {
   const hex = crypto.randomBytes(6).toString('hex');
-  return `bs_bot_${hex}`;
+  return `bot_${hex}`;
 }
 
 /**
- * Retrieve full chatbot by public_id (or internal id fallback)
- * Never exposes this object directly to public API clients.
+ * Retrieve chatbot by public_id or id using the server-side SUPABASE_SERVICE_ROLE_KEY client.
+ * Strictly verifies bot_id and workspace_id in code.
+ * Throws or returns null if not found or if database fails.
  */
 export async function getChatbotByPublicId(
   publicIdOrId: string
 ): Promise<ChatbotConfig | null> {
-  if (!publicIdOrId) return null;
+  if (!publicIdOrId || typeof publicIdOrId !== 'string') return null;
 
-  // 1. Try Supabase
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      // Search by public_id first, then fallback to id
-      const { data, error } = await supabase
-        .from('chatbots')
-        .select('*')
-        .or(`public_id.eq.${publicIdOrId},id.eq.${publicIdOrId}`)
-        .limit(1)
-        .single();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('chatbots')
+    .select('*')
+    .or(`public_id.eq.${publicIdOrId},id.eq.${publicIdOrId}`)
+    .limit(1)
+    .maybeSingle();
 
-      if (!error && data) {
-        // If bot didn't have public_id yet, generate and save it
-        if (!data.public_id) {
-          const generated = generatePublicBotId();
-          await supabase
-            .from('chatbots')
-            .update({ public_id: generated })
-            .eq('id', data.id);
-          data.public_id = generated;
-        }
-        return data as ChatbotConfig;
-      }
-    } catch {
-      // fallback
-    }
+  if (error) {
+    throw new Error(`Database error fetching chatbot: ${error.message}`);
   }
 
-  // 2. In-memory / demo fallback
-  const allBots = Array.from(inMemoryChatbots.values());
-  let found = allBots.find(
-    (b) => b.public_id === publicIdOrId || b.id === publicIdOrId
-  );
-
-  // If found in memory without public_id, assign one
-  if (found && !found.public_id) {
-    found.public_id = generatePublicBotId();
-    inMemoryChatbots.set(found.id || 'bot-default', found);
+  if (!data) {
+    return null;
   }
 
-  return found || null;
+  // Strictly check that the resolved record has both valid id and workspace_id
+  if (!data.id || !data.workspace_id) {
+    console.error(`[WidgetService] Incomplete chatbot record: missing id or workspace_id for ${publicIdOrId}`);
+    return null;
+  }
+
+  return data as ChatbotConfig;
 }
 
 /**
- * Get sanitized public-safe configuration for the widget frontend
- * Strictly filters out all private workspace data, database IDs, and secrets.
+ * Get sanitized public-safe configuration for the widget frontend.
+ * Strictly filters out private workspace data, secrets, and internal keys.
  */
 export async function getPublicChatbotConfig(
   publicId: string
@@ -90,6 +70,14 @@ export async function getPublicChatbotConfig(
     return {
       error: 'Chatbot not found.',
       status: 404,
+    };
+  }
+
+  // Explicit check on bot_id and workspace_id
+  if (!bot.id || !bot.workspace_id) {
+    return {
+      error: 'Chatbot configuration is invalid or missing workspace binding.',
+      status: 500,
     };
   }
 

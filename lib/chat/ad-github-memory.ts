@@ -12,6 +12,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import type { ExperienceEpisode, SelfLearningStats } from './ad-self-learning';
 
 export interface GitHubMemoryConfig {
@@ -23,11 +24,11 @@ export interface GitHubMemoryConfig {
 }
 
 const DEFAULT_CONFIG: GitHubMemoryConfig = {
-  owner: process.env.GITHUB_MEMORY_OWNER || 'biharstack',
-  repo: process.env.GITHUB_MEMORY_REPO || 'ad-model-memory',
+  owner: process.env.GITHUB_MEMORY_OWNER || 'ai-model',
+  repo: process.env.GITHUB_MEMORY_REPO || 'model-memory',
   branch: process.env.GITHUB_MEMORY_BRANCH || 'main',
   token: process.env.GITHUB_MEMORY_TOKEN || process.env.GITHUB_TOKEN || '',
-  localMemoryDir: path.join(process.cwd(), '.data', 'github_memory'),
+  localMemoryDir: path.join(os.tmpdir(), 'ad_github_memory'),
 };
 
 export class ADGitHubMemoryEngine {

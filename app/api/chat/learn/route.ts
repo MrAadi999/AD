@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { distillConversationFacts } from '@/lib/knowledge/auto-learning';
-import { inMemoryMessages } from '@/lib/chat/chat-service';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { ChatMessage } from '@/lib/chat/types';
@@ -22,34 +21,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: 'Database error: Supabase is not configured.' },
+        { status: 500 }
+      );
+    }
+
     let chatMessages: ChatMessage[] = explicitMessages || [];
 
-    // Fetch messages from Supabase or in-memory if not provided directly
+    // Fetch messages strictly from Supabase
     if (!chatMessages.length) {
-      if (isSupabaseConfigured()) {
-        try {
-          const supabase = createServerClient();
-          const { data } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: true });
+      const supabase = createServerClient();
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
 
-          if (data && data.length > 0) {
-            chatMessages = data.map((m: any) => ({
-              id: m.id,
-              role: m.role,
-              content: m.content,
-              created_at: m.created_at,
-            }));
-          }
-        } catch {
-          // fallback
-        }
+      if (error) {
+        return NextResponse.json(
+          { error: `Database error fetching messages: ${error.message}` },
+          { status: 500 }
+        );
       }
 
-      if (!chatMessages.length) {
-        chatMessages = inMemoryMessages.get(conversationId) || [];
+      if (data && data.length > 0) {
+        chatMessages = data.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          created_at: m.created_at,
+        }));
       }
     }
 

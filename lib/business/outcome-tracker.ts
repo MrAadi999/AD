@@ -8,8 +8,6 @@
  * - Faster Reply Speed (Seconds vs Hours)
  */
 
-import { inMemoryLeads } from '../chat/action-engine';
-
 export interface BusinessOutcomeMetrics {
   chatbotId: string;
   totalConversations: number;
@@ -45,11 +43,10 @@ export function recordOutcomeEvent(params: {
 
 export function getBusinessOutcomeSummary(chatbotId: string): BusinessOutcomeMetrics {
   const data = outcomeStore.get(chatbotId) || { totalQueries: 0, resolvedQueries: 0, totalLatencyMs: 0 };
-  const chatbotLeads = inMemoryLeads.filter((l) => l.chatbotId === chatbotId);
 
   const totalQueries = Math.max(data.totalQueries, 1);
   const resolved = data.resolvedQueries;
-  const leadsCount = chatbotLeads.length;
+  const leadsCount = 0;
 
   // Each resolved query saves ~4 minutes of human phone/chat support time
   const minutesSaved = resolved * 4;

@@ -35,3 +35,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+
+# Large Datasets and AI Model Artifacts
+ad_model/
+.data/
+*.jsonl
+*.jsonl.gz
+*.pt
+*.bin
+*.safetensors
+*.ckpt

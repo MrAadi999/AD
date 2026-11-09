@@ -1,83 +1,28 @@
-import * as crypto from 'crypto';
-
 export interface EmbeddingOptions {
-  provider?: 'gemini' | 'openai' | 'local';
+  provider?: 'gemini' | 'openai';
   model?: string;
   dimensions?: number;
 }
 
-const DEFAULT_DIMENSIONS = parseInt(process.env.EMBEDDING_DIMENSIONS || '3072', 10);
+export const EMBEDDING_MODEL_NAME = 'text-embedding-004';
+export const EMBEDDING_DIMENSIONS_VALUE = 768;
+
+const DEFAULT_DIMENSIONS = parseInt(
+  process.env.EMBEDDING_DIMENSIONS || String(EMBEDDING_DIMENSIONS_VALUE),
+  10
+);
 const DEFAULT_PROVIDER = (process.env.EMBEDDING_PROVIDER || 'gemini').toLowerCase() as
   | 'gemini'
-  | 'openai'
-  | 'local';
-const DEFAULT_MODEL = process.env.EMBEDDING_MODEL || 'gemini-embedding-001';
+  | 'openai';
+const DEFAULT_MODEL = process.env.EMBEDDING_MODEL || EMBEDDING_MODEL_NAME;
 
 /**
- * Deterministic local embedding generator (768-dim normalized vector)
- * Uses bag-of-words / token feature hashing + character 3-grams with cosine normalization.
- * Useful for test suites, offline development, and zero-cost local environments.
- */
-export function generateLocalEmbedding(text: string, dimensions: number = DEFAULT_DIMENSIONS): number[] {
-  const vector = new Float64Array(dimensions);
-  const normalized = text.toLowerCase().trim();
-
-  if (!normalized) {
-    // Return unit vector along first dimension if empty
-    vector[0] = 1.0;
-    return Array.from(vector);
-  }
-
-  // 1. Word token hashing
-  const words = normalized.split(/\s+/);
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    const hash = crypto.createHash('sha256').update(word).digest();
-    // Use multi-hash projection for each word
-    for (let k = 0; k < 4; k++) {
-      const idx = Math.abs(hash.readInt32BE(k * 4)) % dimensions;
-      const sign = (hash[k * 4] % 2 === 0) ? 1.0 : -1.0;
-      const weight = 1.0 / Math.sqrt(i + 1); // slight positional decay
-      vector[idx] += sign * weight;
-    }
-  }
-
-  // 2. Character 3-gram hashing for subword/typo robustness
-  for (let i = 0; i < normalized.length - 2; i++) {
-    const tri = normalized.substring(i, i + 3);
-    const hash = crypto.createHash('md5').update(tri).digest();
-    const idx = Math.abs(hash.readInt32BE(0)) % dimensions;
-    const sign = (hash[0] % 2 === 0) ? 0.5 : -0.5;
-    vector[idx] += sign;
-  }
-
-  // 3. Normalize vector to unit length (L2 norm)
-  let norm = 0;
-  for (let i = 0; i < dimensions; i++) {
-    norm += vector[i] * vector[i];
-  }
-  norm = Math.sqrt(norm);
-
-  const result: number[] = new Array(dimensions);
-  if (norm === 0) {
-    result[0] = 1.0;
-    for (let i = 1; i < dimensions; i++) result[i] = 0.0;
-  } else {
-    for (let i = 0; i < dimensions; i++) {
-      result[i] = Number((vector[i] / norm).toFixed(6));
-    }
-  }
-
-  return result;
-}
-
-/**
- * Generate embedding using Gemini REST API
+ * Generate embedding using Gemini REST API (model: text-embedding-004, 768 dimensions)
  */
 async function generateGeminiEmbeddings(
   texts: string[],
   apiKey: string,
-  model: string = 'text-embedding-004'
+  model: string = DEFAULT_MODEL
 ): Promise<number[][]> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:batchEmbedContents?key=${apiKey}`;
 
@@ -86,6 +31,7 @@ async function generateGeminiEmbeddings(
     content: {
       parts: [{ text }],
     },
+    outputDimensionality: DEFAULT_DIMENSIONS,
   }));
 
   const res = await fetch(url, {
@@ -96,7 +42,7 @@ async function generateGeminiEmbeddings(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini embedding API failed (${res.status}): ${errText}`);
+    throw new Error(`Gemini embedding API error (${res.status}): ${errText}`);
   }
 
   const json = await res.json();
@@ -108,13 +54,13 @@ async function generateGeminiEmbeddings(
 }
 
 /**
- * Generate embedding using OpenAI REST API
+ * Generate embedding using OpenAI REST API (e.g. text-embedding-3-small with 768 dimensions)
  */
 async function generateOpenAIEmbeddings(
   texts: string[],
   apiKey: string,
   model: string = 'text-embedding-3-small',
-  dimensions: number = 768
+  dimensions: number = DEFAULT_DIMENSIONS
 ): Promise<number[][]> {
   const url = 'https://api.openai.com/v1/embeddings';
 
@@ -133,7 +79,7 @@ async function generateOpenAIEmbeddings(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`OpenAI embedding API failed (${res.status}): ${errText}`);
+    throw new Error(`OpenAI embedding API error (${res.status}): ${errText}`);
   }
 
   const json = await res.json();
@@ -147,18 +93,23 @@ async function generateOpenAIEmbeddings(
 }
 
 /**
- * Generate embedding for a single text chunk
+ * Generate embedding for a single text chunk.
+ * Fails with a clear Error if no embedding provider succeeds. No fake in-memory fallback.
  */
 export async function generateEmbedding(
   text: string,
   options?: EmbeddingOptions
 ): Promise<number[]> {
   const results = await generateEmbeddingsBatch([text], options);
+  if (!results.length || !results[0]) {
+    throw new Error('Embedding generation produced empty vector');
+  }
   return results[0];
 }
 
 /**
- * Generate embeddings for multiple text chunks in batch
+ * Generate embeddings for multiple text chunks in batch.
+ * Strictly requires valid provider API credentials. Throws if all providers fail.
  */
 export async function generateEmbeddingsBatch(
   texts: string[],
@@ -173,24 +124,21 @@ export async function generateEmbeddingsBatch(
   const geminiKey = process.env.GEMINI_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
-  // 1. Try Gemini if configured
-  if (provider === 'gemini' && geminiKey && !geminiKey.includes('placeholder') && !geminiKey.includes('your-')) {
-    try {
-      return await generateGeminiEmbeddings(texts, geminiKey, model);
-    } catch (err: any) {
-      console.warn(`[EmbeddingService] Gemini provider error: ${err.message}. Falling back to deterministic local embeddings.`);
+  // 1. Try Gemini
+  if (provider === 'gemini') {
+    if (!geminiKey || geminiKey.includes('placeholder') || geminiKey.includes('your-')) {
+      throw new Error('GEMINI_API_KEY is not configured. Embeddings require a valid Gemini API key.');
     }
+    return await generateGeminiEmbeddings(texts, geminiKey, model);
   }
 
-  // 2. Try OpenAI if configured
-  if (provider === 'openai' && openaiKey && !openaiKey.includes('placeholder') && !openaiKey.includes('your-')) {
-    try {
-      return await generateOpenAIEmbeddings(texts, openaiKey, model, dimensions);
-    } catch (err: any) {
-      console.warn(`[EmbeddingService] OpenAI provider error: ${err.message}. Falling back to deterministic local embeddings.`);
+  // 2. Try OpenAI
+  if (provider === 'openai') {
+    if (!openaiKey || openaiKey.includes('placeholder') || openaiKey.includes('your-')) {
+      throw new Error('OPENAI_API_KEY is not configured. Embeddings require a valid OpenAI API key.');
     }
+    return await generateOpenAIEmbeddings(texts, openaiKey, model, dimensions);
   }
 
-  // 3. Fallback to deterministic local normalized vector generator
-  return texts.map((t) => generateLocalEmbedding(t, dimensions));
+  throw new Error(`Unsupported or unconfigured embedding provider: "${provider}"`);
 }

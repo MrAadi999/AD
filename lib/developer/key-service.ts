@@ -1,13 +1,10 @@
 import * as crypto from 'crypto';
-import { createClient as createServerClient } from '../supabase/server';
+import { createAdminClient } from '../supabase/admin';
 import { isSupabaseConfigured } from '../supabase/client';
 import { ApiKeyEnvironment, ApiKeyRecord, CreateApiKeyResponse } from './types';
 
-// In-memory store for local testing, fallback, and demo environments
-export const inMemoryApiKeys = new Map<string, ApiKeyRecord>();
-
 /**
- * Generate a cryptographically secure API key
+ * Generate a cryptographically secure API key.
  * Returns the plaintext key (to show once), the masked prefix, and the SHA-256 hash.
  */
 export function generateApiKey(environment: ApiKeyEnvironment = 'live'): {
@@ -15,7 +12,6 @@ export function generateApiKey(environment: ApiKeyEnvironment = 'live'): {
   keyPrefix: string;
   keyHash: string;
 } {
-  // 24 cryptographically secure random bytes = ~192 bits of entropy
   const entropy = crypto.randomBytes(24).toString('base64url');
   const rawKey = `bs_${environment}_${entropy}`;
 
@@ -34,7 +30,7 @@ export function hashApiKey(rawKey: string): string {
 }
 
 /**
- * Create a new API key for a workspace
+ * Create a new API key for a workspace strictly in Supabase Postgres.
  * Plaintext key is returned ONLY in this response and never persisted.
  */
 export async function createApiKey(params: {
@@ -45,55 +41,32 @@ export async function createApiKey(params: {
   const { workspaceId, name } = params;
   const environment: ApiKeyEnvironment = params.environment === 'test' ? 'test' : 'live';
 
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured. Cannot create API key.');
+  }
+
   const cleanName = (name || '').trim() || `${environment === 'live' ? 'Production' : 'Test'} API Key`;
   const { rawKey, keyPrefix, keyHash } = generateApiKey(environment);
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  const record: ApiKeyRecord = {
-    id,
-    workspace_id: workspaceId,
-    name: cleanName,
-    key_prefix: keyPrefix,
-    key_hash: keyHash,
-    environment,
-    last_used_at: null,
-    expires_at: null,
-    revoked_at: null,
-    created_at: now,
-    updated_at: now,
-  };
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('api_keys')
+    .insert({
+      id,
+      workspace_id: workspaceId,
+      name: cleanName,
+      key_prefix: keyPrefix,
+      key_hash: keyHash,
+      environment,
+      created_at: now,
+      updated_at: now,
+    });
 
-  // Always update in-memory store for fallback / fast lookup
-  inMemoryApiKeys.set(id, record);
-
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase
-        .from('api_keys')
-        .insert({
-          id,
-          workspace_id: workspaceId,
-          name: cleanName,
-          key_prefix: keyPrefix,
-          key_hash: keyHash,
-          environment,
-          created_at: now,
-          updated_at: now,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.warn('[ApiKeyService] Supabase insert failed, using memory store:', error.message);
-      } else if (data) {
-        inMemoryApiKeys.set(data.id, data as ApiKeyRecord);
-      }
-    } catch (err: any) {
-      console.warn('[ApiKeyService] Supabase client error:', err.message);
-    }
+  if (error) {
+    throw new Error(`Database error creating API key: ${error.message}`);
   }
 
   return {
@@ -107,73 +80,53 @@ export async function createApiKey(params: {
 }
 
 /**
- * List all API keys for a workspace (never returns plaintext secrets or hashes)
+ * List all API keys for a workspace strictly from Supabase Postgres.
  */
 export async function listApiKeys(workspaceId: string): Promise<ApiKeyRecord[]> {
   if (!workspaceId) return [];
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('id, workspace_id, name, key_prefix, environment, last_used_at, expires_at, revoked_at, created_at, updated_at')
-        .eq('workspace_id', workspaceId)
-        .order('created_at', { ascending: false });
-
-      if (!error && data) {
-        return data as ApiKeyRecord[];
-      }
-    } catch (err: any) {
-      console.warn('[ApiKeyService] Supabase query error, falling back to memory store:', err.message);
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
   }
 
-  // Fallback to in-memory records
-  const records = Array.from(inMemoryApiKeys.values())
-    .filter((k) => k.workspace_id === workspaceId)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('api_keys')
+    .select('id, workspace_id, name, key_prefix, environment, last_used_at, expires_at, revoked_at, created_at, updated_at')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false });
 
-  return records;
+  if (error) {
+    throw new Error(`Database error fetching API keys: ${error.message}`);
+  }
+
+  return (data as ApiKeyRecord[]) || [];
 }
 
 /**
- * Revoke an API key immediately. Revoked keys cannot be unrevoked.
+ * Revoke an API key immediately in Supabase Postgres.
  */
 export async function revokeApiKey(
   workspaceId: string,
   keyId: string
 ): Promise<boolean> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
+  }
+
   const now = new Date().toISOString();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('api_keys')
+    .update({ revoked_at: now, updated_at: now })
+    .eq('id', keyId)
+    .eq('workspace_id', workspaceId);
 
-  // Update in memory
-  const existing = inMemoryApiKeys.get(keyId);
-  if (existing && existing.workspace_id === workspaceId) {
-    existing.revoked_at = now;
-    existing.updated_at = now;
-    inMemoryApiKeys.set(keyId, existing);
+  if (error) {
+    throw new Error(`Database error revoking API key: ${error.message}`);
   }
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { error } = await supabase
-        .from('api_keys')
-        .update({ revoked_at: now, updated_at: now })
-        .eq('id', keyId)
-        .eq('workspace_id', workspaceId);
-
-      if (error) {
-        console.error('[ApiKeyService] Failed to revoke key in Supabase:', error.message);
-        return existing !== undefined;
-      }
-      return true;
-    } catch (err: any) {
-      console.error('[ApiKeyService] Revocation error:', err.message);
-    }
-  }
-
-  return existing !== undefined;
+  return true;
 }
 
 export interface AuthKeyResult {
@@ -185,8 +138,7 @@ export interface AuthKeyResult {
 }
 
 /**
- * Authenticate incoming Bearer API key
- * Extracts token, verifies format, hashes, looks up active key, and updates last_used_at.
+ * Authenticate incoming Bearer API key against Supabase Postgres.
  */
 export async function authenticateBearerKey(
   authHeader: string | null | undefined
@@ -212,49 +164,43 @@ export async function authenticateBearerKey(
 
   const rawKey = parts[1].trim();
 
-  // Basic sanity format check
   if (!rawKey.startsWith('bs_live_') && !rawKey.startsWith('bs_test_')) {
     return {
       ok: false,
       status: 401,
       code: 'invalid_api_key',
-      message: 'Invalid API key format. BiharStack API keys start with bs_live_ or bs_test_.',
+      message: 'Invalid API key format. API keys must start with bs_live_ or bs_test_.',
+    };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: false,
+      status: 500,
+      code: 'database_unavailable',
+      message: 'Database connection is not configured.',
     };
   }
 
   const keyHash = hashApiKey(rawKey);
+  const supabase = createAdminClient();
 
-  // 1. Check in Supabase if configured
-  let foundKey: ApiKeyRecord | null = null;
+  const { data, error } = await supabase
+    .from('api_keys')
+    .select('*')
+    .eq('key_hash', keyHash)
+    .maybeSingle();
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('key_hash', keyHash)
-        .single();
-
-      if (!error && data) {
-        foundKey = data as ApiKeyRecord;
-      }
-    } catch (err: any) {
-      console.warn('[ApiKeyService] Supabase lookup error:', err.message);
-    }
+  if (error) {
+    return {
+      ok: false,
+      status: 500,
+      code: 'database_error',
+      message: `Database lookup failed: ${error.message}`,
+    };
   }
 
-  // 2. Memory store fallback
-  if (!foundKey) {
-    for (const record of Array.from(inMemoryApiKeys.values())) {
-      if (record.key_hash === keyHash) {
-        foundKey = record;
-        break;
-      }
-    }
-  }
-
-  if (!foundKey) {
+  if (!data) {
     return {
       ok: false,
       status: 401,
@@ -263,7 +209,9 @@ export async function authenticateBearerKey(
     };
   }
 
-  // 3. Check revocation
+  const foundKey = data as ApiKeyRecord;
+
+  // Check revocation
   if (foundKey.revoked_at) {
     return {
       ok: false,
@@ -273,7 +221,7 @@ export async function authenticateBearerKey(
     };
   }
 
-  // 4. Check expiration
+  // Check expiration
   if (foundKey.expires_at) {
     const expiresTime = new Date(foundKey.expires_at).getTime();
     if (Date.now() > expiresTime) {
@@ -286,24 +234,16 @@ export async function authenticateBearerKey(
     }
   }
 
-  // 5. Update last_used_at asynchronously
+  // Update last_used_at
   const now = new Date().toISOString();
   foundKey.last_used_at = now;
-  inMemoryApiKeys.set(foundKey.id, foundKey);
 
-  if (isSupabaseConfigured()) {
-    (async () => {
-      try {
-        const supabase = createServerClient();
-        await supabase
-          .from('api_keys')
-          .update({ last_used_at: now })
-          .eq('id', foundKey.id);
-      } catch (err: any) {
-        // Non-blocking telemetry update
-      }
-    })();
-  }
+  supabase
+    .from('api_keys')
+    .update({ last_used_at: now })
+    .eq('id', foundKey.id)
+    .then()
+    .catch((err) => console.warn('[ApiKeyService] Error updating last_used_at:', err.message));
 
   return {
     ok: true,

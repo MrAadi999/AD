@@ -271,23 +271,24 @@ export async function POST(
 
     // If source is a web link, extract live webpage content if not explicitly provided
     if (sourceType === 'website' || customUrl.startsWith('http://') || customUrl.startsWith('https://')) {
-      const { fetchAndExtractPage } = await import('@/lib/crawler/native-crawler');
-      const extracted = await fetchAndExtractPage(customUrl);
-      if (extracted && extracted.status === 'completed') {
-        if (!title) title = extracted.title || 'Web Page';
-        if (!content) content = extracted.content;
-        customUrl = extracted.url;
-      } else if (!content) {
-        // Resilient fallback: Provide clean baseline knowledge rather than failing
-        try {
-          const parsed = new URL(customUrl);
-          const domain = parsed.hostname.replace(/^www\./, '');
-          if (!title) title = `${domain} Web Resource`;
-          content = `Official web resource for ${domain}. URL: ${customUrl}. Verified digital channel for customer inquiries, official updates, and service communication.`;
-        } catch {
-          if (!title) title = 'Website Link';
-          content = `Official web resource: ${customUrl}. Verified knowledge touchpoint for customer support.`;
+      const { validateSafeUrl } = await import('@/lib/crawler/playwright-crawler');
+      const safeCheck = await validateSafeUrl(customUrl);
+      if (!safeCheck.safe) {
+        return NextResponse.json(
+          { error: `SSRF Security Error: ${safeCheck.error}` },
+          { status: 400 }
+        );
+      }
+      try {
+        const pageRes = await fetch(customUrl, { signal: AbortSignal.timeout(10000) });
+        if (pageRes.ok) {
+          const html = await pageRes.text();
+          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (!title) title = titleMatch ? titleMatch[1].trim() : 'Web Resource';
+          if (!content) content = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         }
+      } catch (err: any) {
+        console.warn('[KnowledgeAPI] Page fetch error:', err.message);
       }
 
       // Auto-set chatbot website_url if currently empty

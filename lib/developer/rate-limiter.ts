@@ -1,7 +1,4 @@
-// In-memory sliding window rate limiter for Developer API requests
-const keyTimestampMap = new Map<string, number[]>();
-
-const WINDOW_MS = 60 * 1000; // 60 seconds
+import { checkRateLimit } from '../rate-limit/rate-limiter';
 
 const DEFAULT_RATE_LIMIT = parseInt(
   process.env.API_KEY_RATE_LIMIT_PER_MINUTE || '100',
@@ -17,47 +14,24 @@ export interface RateLimitResult {
 }
 
 /**
- * Check rate limit for an authenticated API key request
+ * Check rate limit for an authenticated API key request using persistent store.
  */
-export function checkApiKeyRateLimit(
+export async function checkApiKeyRateLimit(
   apiKeyId: string,
   customLimit?: number
-): RateLimitResult {
+): Promise<RateLimitResult> {
   const limit = customLimit ?? DEFAULT_RATE_LIMIT;
   const now = Date.now();
-  const resetEpoch = Math.ceil((now + WINDOW_MS) / 1000);
+  const key = `api_key:${apiKeyId}`;
 
-  const timestamps = (keyTimestampMap.get(apiKeyId) || []).filter(
-    (t) => now - t < WINDOW_MS
-  );
-
-  if (timestamps.length >= limit) {
-    const oldest = timestamps[0];
-    const retryAfter = Math.max(1, Math.ceil((WINDOW_MS - (now - oldest)) / 1000));
-    return {
-      allowed: false,
-      limit,
-      remaining: 0,
-      reset: Math.ceil((oldest + WINDOW_MS) / 1000),
-      retryAfter,
-    };
-  }
-
-  // Record this request
-  timestamps.push(now);
-  keyTimestampMap.set(apiKeyId, timestamps);
+  const res = await checkRateLimit(key, limit, 60);
+  const resetEpoch = Math.ceil((now + 60000) / 1000);
 
   return {
-    allowed: true,
+    allowed: res.allowed,
     limit,
-    remaining: Math.max(0, limit - timestamps.length),
+    remaining: res.remaining,
     reset: resetEpoch,
+    retryAfter: res.retryAfter,
   };
-}
-
-/**
- * Reset rate limits for testing
- */
-export function resetApiKeyRateLimits(): void {
-  keyTimestampMap.clear();
 }

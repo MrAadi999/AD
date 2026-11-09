@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
 
   const apiKey = authResult.apiKey;
 
-  // 2. Server-side Rate Limiting
-  const rateLimit = checkApiKeyRateLimit(apiKey.id);
+  // 2. Server-side Rate Limiting (Database / Upstash backed)
+  const rateLimit = await checkApiKeyRateLimit(apiKey.id);
   const rateLimitHeaders = {
     'X-RateLimit-Limit': String(rateLimit.limit),
     'X-RateLimit-Remaining': String(rateLimit.remaining),

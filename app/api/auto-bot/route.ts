@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { autoGenerateBotFromUrl } from '@/lib/crawler/smart-analyzer';
 import { saveKnowledgeChunks } from '@/lib/knowledge/vector-store';
-import { inMemoryChatbots } from '@/lib/chatbot/service';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import * as crypto from 'crypto';
@@ -18,10 +17,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: 'Database error: Supabase is not configured.' },
+        { status: 500 }
+      );
+    }
+
     const botId = `bot-${crypto.randomBytes(4).toString('hex')}`;
     const startTime = Date.now();
 
-    // 1. Analyze and Reverse-Engineer the target website
+    // 1. Analyze target website
     const analysis = await autoGenerateBotFromUrl({
       workspaceId,
       chatbotId: botId,
@@ -60,20 +66,17 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    // 3. Save in-memory
-    inMemoryChatbots.set(botId, chatbotConfig);
-
-    // 4. Save to Supabase if configured
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = createServerClient();
-        await supabase.from('chatbots').insert(chatbotConfig);
-      } catch (err: any) {
-        console.warn('[AutoBot API] Supabase chatbot insert error:', err.message);
-      }
+    // 3. Save strictly to Supabase
+    const supabase = createServerClient();
+    const { error: insertError } = await supabase.from('chatbots').insert(chatbotConfig);
+    if (insertError) {
+      return NextResponse.json(
+        { error: `Database error saving chatbot: ${insertError.message}` },
+        { status: 500 }
+      );
     }
 
-    // 5. Save seed knowledge chunks into vector store
+    // 4. Save seed knowledge chunks into vector store (pgvector)
     if (analysis.seedChunks.length > 0) {
       await saveKnowledgeChunks(workspaceId, botId, analysis.seedChunks);
     }

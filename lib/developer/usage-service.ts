@@ -1,99 +1,109 @@
 import * as crypto from 'crypto';
-import { createClient as createServerClient } from '../supabase/server';
+import { createAdminClient } from '../supabase/admin';
 import { isSupabaseConfigured } from '../supabase/client';
 import { ApiRequestLogRecord, ApiUsageRecord, UsageSummary } from './types';
 import { ChatbotService } from '../chatbot/service';
 
-// In-memory telemetry stores
-export const inMemoryApiUsage: ApiUsageRecord[] = [];
-export const inMemoryApiLogs: ApiRequestLogRecord[] = [];
-
 /**
- * Record an API usage event for billing and telemetry
+ * Record an API usage event strictly in Supabase Postgres.
  */
 export async function recordApiUsage(
   entry: Omit<ApiUsageRecord, 'id' | 'created_at'>
 ): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    console.warn('[UsageService] Supabase not configured, skipping usage record');
+    return;
+  }
+
   const record: ApiUsageRecord = {
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
     ...entry,
   };
 
-  inMemoryApiUsage.unshift(record);
-  if (inMemoryApiUsage.length > 2000) inMemoryApiUsage.pop();
+  try {
+    const supabase = createAdminClient();
+    const { error } = await supabase.from('api_usage').insert({
+      id: record.id,
+      workspace_id: record.workspace_id,
+      api_key_id: record.api_key_id,
+      chatbot_id: record.chatbot_id,
+      request_id: record.request_id,
+      endpoint: record.endpoint,
+      method: record.method,
+      status_code: record.status_code,
+      input_tokens: record.input_tokens,
+      output_tokens: record.output_tokens,
+      total_tokens: record.total_tokens,
+      latency_ms: record.latency_ms,
+      created_at: record.created_at,
+    });
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      await supabase.from('api_usage').insert({
-        id: record.id,
-        workspace_id: record.workspace_id,
-        api_key_id: record.api_key_id,
-        chatbot_id: record.chatbot_id,
-        request_id: record.request_id,
-        endpoint: record.endpoint,
-        method: record.method,
-        status_code: record.status_code,
-        input_tokens: record.input_tokens,
-        output_tokens: record.output_tokens,
-        total_tokens: record.total_tokens,
-        latency_ms: record.latency_ms,
-        created_at: record.created_at,
-      });
-    } catch (err: any) {
-      console.warn('[UsageService] Supabase usage insert error:', err.message);
+    if (error) {
+      console.warn('[UsageService] Supabase usage insert error:', error.message);
     }
+  } catch (err: any) {
+    console.warn('[UsageService] Supabase client error:', err.message);
   }
 }
 
 /**
- * Record an API request log entry (Strictly privacy-safe: NO keys, NO auth headers)
+ * Record an API request log entry strictly in Supabase Postgres.
  */
 export async function recordApiLog(
   entry: Omit<ApiRequestLogRecord, 'id' | 'created_at'>
 ): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    return;
+  }
+
   const record: ApiRequestLogRecord = {
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
     ...entry,
   };
 
-  inMemoryApiLogs.unshift(record);
-  if (inMemoryApiLogs.length > 2000) inMemoryApiLogs.pop();
+  try {
+    const supabase = createAdminClient();
+    const { error } = await supabase.from('api_request_logs').insert({
+      id: record.id,
+      workspace_id: record.workspace_id,
+      api_key_id: record.api_key_id,
+      chatbot_id: record.chatbot_id,
+      request_id: record.request_id,
+      method: record.method,
+      path: record.path,
+      status_code: record.status_code,
+      latency_ms: record.latency_ms,
+      error_code: record.error_code || null,
+      created_at: record.created_at,
+    });
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      await supabase.from('api_request_logs').insert({
-        id: record.id,
-        workspace_id: record.workspace_id,
-        api_key_id: record.api_key_id,
-        chatbot_id: record.chatbot_id,
-        request_id: record.request_id,
-        method: record.method,
-        path: record.path,
-        status_code: record.status_code,
-        latency_ms: record.latency_ms,
-        error_code: record.error_code,
-        created_at: record.created_at,
-      });
-    } catch (err: any) {
-      console.warn('[UsageService] Supabase log insert error:', err.message);
+    if (error) {
+      console.warn('[UsageService] Supabase log insert error:', error.message);
     }
+  } catch (err: any) {
+    console.warn('[UsageService] Supabase client error:', err.message);
   }
 }
 
 /**
- * Retrieve usage summary and timeseries charts for a workspace
+ * Get aggregated API usage summary strictly from Supabase Postgres.
  */
 export async function getUsageSummary(
   workspaceId: string,
   timeframe: 'today' | '7d' | '30d' = '7d'
 ): Promise<UsageSummary> {
+  if (!workspaceId) {
+    throw new Error('Workspace ID is required to fetch usage summary.');
+  }
+
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
+  }
+
   const now = new Date();
   let cutoffDate = new Date();
-
   if (timeframe === 'today') {
     cutoffDate.setHours(0, 0, 0, 0);
   } else if (timeframe === '7d') {
@@ -102,38 +112,19 @@ export async function getUsageSummary(
     cutoffDate.setDate(now.getDate() - 30);
   }
 
-  // Get matching usage records
-  let records: ApiUsageRecord[] = [];
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('api_usage')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .gte('created_at', cutoffDate.toISOString())
+    .order('created_at', { ascending: true });
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase
-        .from('api_usage')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .gte('created_at', cutoffDate.toISOString());
-
-      if (!error && data) {
-        records = data as ApiUsageRecord[];
-      }
-    } catch (err: any) {
-      console.warn('[UsageService] Supabase usage fetch error:', err.message);
-    }
+  if (error) {
+    throw new Error(`Database error fetching API usage: ${error.message}`);
   }
 
-  if (records.length === 0) {
-    records = inMemoryApiUsage.filter(
-      (r) =>
-        r.workspace_id === workspaceId &&
-        new Date(r.created_at).getTime() >= cutoffDate.getTime()
-    );
-  }
-
-  // If no live requests yet, supply seed baseline data so dashboard looks active
-  if (records.length === 0) {
-    return generateSeedUsageSummary(timeframe);
-  }
+  const records: ApiUsageRecord[] = (data as ApiUsageRecord[]) || [];
 
   let totalRequests = records.length;
   let successfulRequests = 0;
@@ -142,7 +133,6 @@ export async function getUsageSummary(
   let totalLatency = 0;
   let rateLimitedCount = 0;
 
-  // Group into time-series buckets
   const bucketMap = new Map<string, { requests: number; tokens: number; errors: number }>();
 
   for (const r of records) {
@@ -159,7 +149,6 @@ export async function getUsageSummary(
     tokensUsed += r.total_tokens || 0;
     totalLatency += r.latency_ms || 0;
 
-    // Bucket by day or hour
     const dateObj = new Date(r.created_at);
     const bucketKey =
       timeframe === 'today'
@@ -174,118 +163,70 @@ export async function getUsageSummary(
   }
 
   const avgLatency = totalRequests > 0 ? Math.round(totalLatency / totalRequests) : 0;
-
-  const timeSeries = Array.from(bucketMap.entries()).map(([timestamp, data]) => ({
+  const timeSeries = Array.from(bucketMap.entries()).map(([timestamp, bData]) => ({
     timestamp,
-    ...data,
+    ...bData,
   }));
 
   return {
-    timeframe,
     total_requests: totalRequests,
     successful_requests: successfulRequests,
     failed_requests: failedRequests,
+    rate_limited_requests: rateLimitedCount,
     tokens_used: tokensUsed,
-    avg_latency_ms: avgLatency,
-    rate_limited_count: rateLimitedCount,
+    average_latency_ms: avgLatency,
     time_series: timeSeries,
   };
 }
 
 /**
- * Fallback seed data for empty workspaces to present a clean SaaS UI preview
+ * List recent request logs strictly from Supabase Postgres.
  */
-function generateSeedUsageSummary(timeframe: 'today' | '7d' | '30d'): UsageSummary {
-  const points = timeframe === 'today' ? 12 : timeframe === '7d' ? 7 : 14;
-  const timeSeries: Array<{ timestamp: string; requests: number; tokens: number; errors: number }> = [];
-
-  const now = new Date();
-  let totalReqs = 0;
-  let totalToks = 0;
-  let totalErrs = 0;
-
-  for (let i = points - 1; i >= 0; i--) {
-    const d = new Date(now);
-    let label = '';
-    if (timeframe === 'today') {
-      d.setHours(now.getHours() - i);
-      label = `${d.getHours()}:00`;
-    } else {
-      d.setDate(now.getDate() - i);
-      label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-
-    const reqs = Math.floor(150 + Math.sin(i) * 60 + (points - i) * 12);
-    const toks = reqs * Math.floor(180 + Math.random() * 40);
-    const errs = Math.floor(reqs * 0.015);
-
-    totalReqs += reqs;
-    totalToks += toks;
-    totalErrs += errs;
-
-    timeSeries.push({
-      timestamp: label,
-      requests: reqs,
-      tokens: toks,
-      errors: errs,
-    });
-  }
-
-  return {
-    timeframe,
-    total_requests: totalReqs,
-    successful_requests: totalReqs - totalErrs,
-    failed_requests: totalErrs,
-    tokens_used: totalToks,
-    avg_latency_ms: 840,
-    rate_limited_count: 3,
-    time_series: timeSeries,
-  };
-}
-
-/**
- * Retrieve recent request logs for a workspace
- */
-export async function getRecentLogs(
+export async function listApiLogs(
   workspaceId: string,
-  limit: number = 50
+  options?: { limit?: number; offset?: number; keyId?: string }
 ): Promise<ApiRequestLogRecord[]> {
-  let logs: ApiRequestLogRecord[] = [];
+  if (!workspaceId) return [];
 
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createServerClient();
-      const { data, error } = await supabase
-        .from('api_request_logs')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database error: Supabase is not configured.');
+  }
 
-      if (!error && data) {
-        logs = data as ApiRequestLogRecord[];
-      }
-    } catch (err: any) {
-      console.warn('[UsageService] Supabase log fetch error:', err.message);
+  const limit = options?.limit || 50;
+  const offset = options?.offset || 0;
+
+  const supabase = createAdminClient();
+  let query = supabase
+    .from('api_request_logs')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (options?.keyId) {
+    query = query.eq('api_key_id', options.keyId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Database error fetching API logs: ${error.message}`);
+  }
+
+  const logs: ApiRequestLogRecord[] = (data as ApiRequestLogRecord[]) || [];
+
+  // Enrich logs with bot names if available
+  try {
+    const bots = await ChatbotService.getChatbots(workspaceId);
+    const botMap = new Map<string, string>();
+    for (const b of bots) {
+      if (b.id) botMap.set(b.id, b.name);
     }
-  }
+    for (const log of logs) {
+      if (log.chatbot_id && botMap.has(log.chatbot_id)) {
+        log.bot_name = botMap.get(log.chatbot_id);
+      }
+    }
+  } catch {}
 
-  if (logs.length === 0) {
-    logs = inMemoryApiLogs
-      .filter((l) => l.workspace_id === workspaceId)
-      .slice(0, limit);
-  }
-
-  // Populate bot names where possible
-  const bots = await ChatbotService.getChatbots(workspaceId);
-  const botMap = new Map<string, string>();
-  bots.forEach((b) => {
-    if (b.id) botMap.set(b.id, b.name);
-    if (b.public_id) botMap.set(b.public_id, b.name);
-  });
-
-  return logs.map((l) => ({
-    ...l,
-    chatbot_name: l.chatbot_id ? botMap.get(l.chatbot_id) || 'AI Chatbot' : undefined,
-  }));
+  return logs;
 }
